@@ -7,7 +7,7 @@ import threading
 import time
 import logging
 from werkzeug.utils import secure_filename
-from database import init_db, get_db_connection
+from database import init_db, get_db_connection, DbIntegrityError
 from evolution_api import EvolutionAPI
 
 # Configure logging
@@ -475,7 +475,7 @@ def clients_upload():
                             )
                             conn.commit()
                             success_count += 1
-                        except sqlite3.IntegrityError:
+                        except DbIntegrityError:
                             # Already exists (duplicate phone)
                             duplicate_count += 1
                             
@@ -497,7 +497,6 @@ def clients_upload():
 
 @app.route('/clients/add', methods=['POST'])
 def client_add():
-    import sqlite3
     name = request.form.get('name', '').strip()
     phone = request.form.get('phone', '').strip()
     category = request.form.get('category', 'General').strip() or 'General'
@@ -520,7 +519,7 @@ def client_add():
         conn.commit()
         conn.close()
         flash(f"Client '{name}' added successfully under category '{category}'.", 'success')
-    except sqlite3.IntegrityError:
+    except DbIntegrityError:
         flash(f"Error: Phone number '{normalized}' already exists.", 'error')
     except Exception as e:
         flash(f"Database error: {str(e)}", 'error')
