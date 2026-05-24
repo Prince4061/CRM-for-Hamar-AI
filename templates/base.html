@@ -3,6 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
     <title>{% block title %}Hamar AI Outreach CRM{% endblock %}</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -106,14 +112,13 @@
             const themeBtn = document.getElementById('themeToggleBtn');
             const icon = themeBtn.querySelector('i');
             
-            // Check storage or system preference
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-            updateThemeIcon(savedTheme);
+            // Icon is updated based on already set theme
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            updateThemeIcon(currentTheme);
 
             themeBtn.addEventListener('click', () => {
-                let currentTheme = document.documentElement.getAttribute('data-theme');
-                let newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                let theme = document.documentElement.getAttribute('data-theme');
+                let newTheme = theme === 'dark' ? 'light' : 'dark';
                 
                 document.documentElement.setAttribute('data-theme', newTheme);
                 localStorage.setItem('theme', newTheme);

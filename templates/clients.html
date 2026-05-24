@@ -33,9 +33,9 @@
 
             <div class="mt-4 pt-4 border-top border-color">
                 <h6 class="fw-bold mb-2">CSV Sample Format:</h6>
-                <pre class="bg-primary p-3 rounded-3 small text-secondary">Name,WhatsApp
-Ramesh Kumar,9876543210
-Priya Sharma,8765432109</pre>
+                <pre class="bg-primary p-3 rounded-3 small text-secondary">Name,WhatsApp,Category
+Ramesh Kumar,9876543210,Buyers
+Priya Sharma,8765432109,Investors</pre>
             </div>
         </div>
 
@@ -52,6 +52,22 @@ Priya Sharma,8765432109</pre>
                 <div class="mb-3">
                     <label for="client_phone" class="form-label">WhatsApp Number / Phone</label>
                     <input type="text" class="form-control" id="client_phone" name="phone" placeholder="e.g. 916263210328" required>
+                </div>
+                <div class="mb-3">
+                    <label for="client_category" class="form-label">Category</label>
+                    <input type="text" class="form-control" id="client_category" name="category" placeholder="e.g. Buyers" list="defaultCategories" required>
+                    <datalist id="defaultCategories">
+                        <option value="General"></option>
+                        <option value="Buyers"></option>
+                        <option value="Sellers"></option>
+                        <option value="Investors"></option>
+                        <option value="Agents"></option>
+                        {% for cat in categories %}
+                            {% if cat not in ['General', 'Buyers', 'Sellers', 'Investors', 'Agents'] %}
+                                <option value="{{ cat }}"></option>
+                            {% endif %}
+                        {% endfor %}
+                    </datalist>
                 </div>
                 <div class="d-grid">
                     <button type="submit" class="btn btn-primary">
@@ -80,10 +96,20 @@ Priya Sharma,8765432109</pre>
             </div>
 
             {% if clients %}
-            <div class="mb-3">
-                <div class="input-group">
-                    <span class="input-group-text bg-primary border-color text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
-                    <input type="text" id="clientSearch" class="form-control" placeholder="Search contacts by name or phone...">
+            <div class="mb-3 row g-2">
+                <div class="col-12 col-md-8">
+                    <div class="input-group">
+                        <span class="input-group-text bg-primary border-color text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <input type="text" id="clientSearch" class="form-control" placeholder="Search contacts by name or phone...">
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <select id="categoryFilter" class="form-select bg-primary border-color text-secondary" style="color: var(--text-primary) !important;">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}">{{ cat }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
             </div>
 
@@ -93,15 +119,21 @@ Priya Sharma,8765432109</pre>
                         <tr>
                             <th>#</th>
                             <th>Client Name</th>
+                            <th>Category</th>
                             <th>WhatsApp Number</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for client in clients %}
-                        <tr>
+                        <tr data-category="{{ client.category }}">
                             <td class="small text-secondary fw-semibold">#{{ loop.index }}</td>
                             <td class="fw-semibold">{{ client.name }}</td>
+                            <td>
+                                <span class="status-badge" style="background-color: var(--accent-light); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.2);">
+                                    <i class="fa-solid fa-tag me-1 small"></i>{{ client.category or 'General' }}
+                                </span>
+                            </td>
                             <td>
                                 <a href="https://wa.me/{{ client.whatsapp_number }}" target="_blank" class="text-decoration-none">
                                     <i class="fa-brands fa-whatsapp text-success me-2"></i>{{ client.whatsapp_number }}
@@ -184,19 +216,28 @@ function updateFileLabel(input) {
     }
 }
 
-// Simple Live Search
-document.getElementById('clientSearch')?.addEventListener('keyup', function() {
-    const query = this.value.toLowerCase();
+// Live Search and Category Filtering combined
+function filterClients() {
+    const query = document.getElementById('clientSearch')?.value.toLowerCase() || '';
+    const selectedCategory = document.getElementById('categoryFilter')?.value || '';
     const rows = document.querySelectorAll('#clientsTable tbody tr');
     
     rows.forEach(row => {
         const text = row.innerText.toLowerCase();
-        if (text.includes(query)) {
+        const rowCategory = row.getAttribute('data-category') || '';
+        
+        const matchesSearch = text.includes(query);
+        const matchesCategory = !selectedCategory || rowCategory === selectedCategory;
+        
+        if (matchesSearch && matchesCategory) {
             row.style.display = '';
         } else {
             row.style.display = 'none';
         }
     });
-});
+}
+
+document.getElementById('clientSearch')?.addEventListener('keyup', filterClients);
+document.getElementById('categoryFilter')?.addEventListener('change', filterClients);
 </script>
 {% endblock %}

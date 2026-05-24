@@ -23,6 +23,27 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+@app.before_request
+def log_incoming_request():
+    try:
+        # Only log webhook or POST requests to avoid bloat
+        if request.path.startswith('/webhook') or request.method == 'POST':
+            log_file = os.path.join(app.root_path, 'scratch', 'requests_log.txt')
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            
+            # Read raw body safely
+            body = request.get_data(as_text=True)
+            
+            with open(log_file, 'a', encoding='utf-8') as f:
+                import datetime
+                timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                f.write(f"[{timestamp}] {request.method} {request.path}\n")
+                f.write(f"Headers: {dict(request.headers)}\n")
+                f.write(f"Body: {body}\n")
+                f.write("-" * 80 + "\n")
+    except Exception as e:
+        logger.error(f"Error in request logger: {e}")
+
 # Settings File Path
 SETTINGS_PATH = os.path.join(app.root_path, 'settings.json')
 
@@ -102,8 +123,8 @@ def campaign_worker_loop():
     logger.info("Background campaign worker started.")
     while True:
         try:
+            # 1. Fetch current running campaign (short-lived connection)
             conn = get_db_connection()
-            # Fetch the first campaign currently running
             campaign = conn.execute(
                 "SELECT * FROM campaigns WHERE status = 'Running' ORDER BY id ASC LIMIT 1"
             ).fetchone()
@@ -119,14 +140,6 @@ def campaign_worker_loop():
             media_path = campaign['media_path']
             message_template = campaign['message_content']
             
-            # Initialize API
-            settings = load_settings()
-            api = EvolutionAPI(
-                base_url=settings.get('api_url'),
-                api_key=settings.get('api_key'),
-                instance_name=settings.get('instance_name')
-            )
-            
             # Get up to batch_limit pending logs
             logs = conn.execute(
                 "SELECT ml.*, c.whatsapp_number, c.name as client_name "
@@ -137,8 +150,13 @@ def campaign_worker_loop():
                 (campaign_id, batch_limit)
             ).fetchall()
             
-            if not logs:
+            # Convert rows to standard dictionaries so we can use them after closing the connection
+            logs_dict = [dict(log) for log in logs]
+            conn.close() # Close immediately to release SQLite locks!
+            
+            if not logs_dict:
                 # No more pending logs left, complete the campaign
+                conn = get_db_connection()
                 conn.execute(
                     "UPDATE campaigns SET status = 'Completed', progress = 100 WHERE id = ?",
                     (campaign_id,)
@@ -148,31 +166,60 @@ def campaign_worker_loop():
                 logger.info(f"Campaign #{campaign_id} has completed sending.")
                 continue
                 
-            logger.info(f"Processing batch of {len(logs)} messages for Campaign #{campaign_id}.")
+            logger.info(f"Processing batch of {len(logs_dict)} messages for Campaign #{campaign_id}.")
             
-            sent_in_batch = 0
-            for index, log in enumerate(logs):
-                # Verify that the campaign status hasn't changed to Paused/Cancelled in the meantime
+            # Initialize API
+            settings = load_settings()
+            api = EvolutionAPI(
+                base_url=settings.get('api_url'),
+                api_key=settings.get('api_key'),
+                instance_name=settings.get('instance_name')
+            )
+            
+            for index, log in enumerate(logs_dict):
+                # Verify that the campaign status hasn't changed to Paused/Cancelled
+                conn = get_db_connection()
                 campaign_status = conn.execute(
                     "SELECT status FROM campaigns WHERE id = ?",
                     (campaign_id,)
                 ).fetchone()
                 
                 if not campaign_status or campaign_status['status'] != 'Running':
+                    conn.close()
                     logger.info(f"Campaign #{campaign_id} status changed to {campaign_status['status'] if campaign_status else 'None'}. Halting batch.")
                     break
                     
                 log_id = log['id']
+                
+                # Optimistic lock: Update status to 'Sending' immediately inside this brief connection
+                # This guarantees that NO concurrent thread/process can duplicate-send this log!
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE message_logs SET status = 'Sending' WHERE id = ? AND status = 'Pending'",
+                    (log_id,)
+                )
+                conn.commit()
+                
+                if cursor.rowcount == 0:
+                    # Already grabbed by another thread/process!
+                    conn.close()
+                    logger.info(f"Log #{log_id} already being processed or not pending. Skipping.")
+                    continue
+                    
+                conn.close() # Close connection during the slow network API call!
+                
                 recipient_number = log['whatsapp_number']
                 recipient_name = log['client_name'] or 'Deleted Client'
                 
                 if not recipient_number:
                     # Client no longer exists in DB
+                    conn = get_db_connection()
                     conn.execute(
                         "UPDATE message_logs SET status = 'Failed', error_message = 'Client deleted from database', timestamp = CURRENT_TIMESTAMP WHERE id = ?",
                         (log_id,)
                     )
                     conn.commit()
+                    
                     # Recalculate progress ratio
                     stats = conn.execute(
                         "SELECT "
@@ -189,11 +236,11 @@ def campaign_worker_loop():
                             (progress, campaign_id)
                         )
                         conn.commit()
+                    conn.close()
                     continue
                 
                 # Replace {name} placeholder
                 personalized_message = message_template.replace('{name}', recipient_name)
-
                 
                 # Send message via API
                 success, error_msg = api.send_message(
@@ -205,6 +252,7 @@ def campaign_worker_loop():
                 new_status = 'Sent' if success else 'Failed'
                 
                 # Update status log in database
+                conn = get_db_connection()
                 conn.execute(
                     "UPDATE message_logs SET status = ?, error_message = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?",
                     (new_status, error_msg, log_id)
@@ -223,8 +271,6 @@ def campaign_worker_loop():
                         )
                         reply_thread.start()
                 
-                sent_in_batch += 1
-                
                 # Recalculate progress ratio
                 stats = conn.execute(
                     "SELECT "
@@ -242,13 +288,15 @@ def campaign_worker_loop():
                         (progress, campaign_id)
                     )
                     conn.commit()
+                conn.close()
                 
                 # Apply delay between messages (if not the last one in this list)
-                if index < len(logs) - 1:
+                if index < len(logs_dict) - 1:
                     logger.info(f"Waiting {delay} seconds delay before sending next message...")
                     time.sleep(delay)
             
             # Post-batch assessment
+            conn = get_db_connection()
             # Count remaining pending logs
             remaining_pending = conn.execute(
                 "SELECT COUNT(*) as count FROM message_logs WHERE campaign_id = ? AND status = 'Pending'",
@@ -343,9 +391,12 @@ def dashboard():
 @app.route('/clients')
 def clients_page():
     conn = get_db_connection()
-    clients = conn.execute("SELECT * FROM clients ORDER BY name ASC").fetchall()
+    clients_rows = conn.execute("SELECT * FROM clients ORDER BY name ASC").fetchall()
+    clients = [dict(row) for row in clients_rows]
+    categories_rows = conn.execute("SELECT DISTINCT category FROM clients ORDER BY category ASC").fetchall()
+    categories = [row['category'] for row in categories_rows if row['category']]
     conn.close()
-    return render_template('clients.html', active_page='clients', clients=clients)
+    return render_template('clients.html', active_page='clients', clients=clients, categories=categories)
 
 
 @app.route('/clients/upload', methods=['POST'])
@@ -373,9 +424,11 @@ def clients_upload():
             header = [col.strip().lower() for col in rows[0]]
             name_idx = -1
             phone_idx = -1
+            category_idx = -1
             
             name_keywords = ["name", "full name", "client", "customer", "recipient", "naam", "नाम"]
             phone_keywords = ["phone", "whatsapp", "number", "mobile", "contact", "wa", "मोबाइल", "नंबर"]
+            category_keywords = ["category", "type", "tag", "group", "varg", "श्रेणी"]
             
             for i, col in enumerate(header):
                 if any(kw in col for kw in name_keywords):
@@ -384,6 +437,10 @@ def clients_upload():
             for i, col in enumerate(header):
                 if any(kw in col for kw in phone_keywords):
                     phone_idx = i
+                    break
+            for i, col in enumerate(header):
+                if any(kw in col for kw in category_keywords):
+                    category_idx = i
                     break
                     
             has_header = True
@@ -404,13 +461,17 @@ def clients_upload():
                 name = row[name_idx].strip()
                 phone = row[phone_idx].strip()
                 
+                category = "General"
+                if category_idx != -1 and len(row) > category_idx:
+                    category = row[category_idx].strip() or "General"
+                
                 if name and phone:
                     normalized = normalize_phone(phone)
                     if normalized:
                         try:
                             conn.execute(
-                                "INSERT INTO clients (name, whatsapp_number) VALUES (?, ?)",
-                                (name, normalized)
+                                "INSERT INTO clients (name, whatsapp_number, category) VALUES (?, ?, ?)",
+                                (name, normalized, category)
                             )
                             conn.commit()
                             success_count += 1
@@ -439,6 +500,7 @@ def client_add():
     import sqlite3
     name = request.form.get('name', '').strip()
     phone = request.form.get('phone', '').strip()
+    category = request.form.get('category', 'General').strip() or 'General'
     
     if not name or not phone:
         flash('Both Name and Phone Number are required.', 'error')
@@ -452,12 +514,12 @@ def client_add():
     try:
         conn = get_db_connection()
         conn.execute(
-            "INSERT INTO clients (name, whatsapp_number) VALUES (?, ?)",
-            (name, normalized)
+            "INSERT INTO clients (name, whatsapp_number, category) VALUES (?, ?, ?)",
+            (name, normalized, category)
         )
         conn.commit()
         conn.close()
-        flash(f"Client '{name}' added successfully.", 'success')
+        flash(f"Client '{name}' added successfully under category '{category}'.", 'success')
     except sqlite3.IntegrityError:
         flash(f"Error: Phone number '{normalized}' already exists.", 'error')
     except Exception as e:
@@ -504,6 +566,7 @@ def campaign_new():
         message_content = request.form.get('message_content')
         delay = int(request.form.get('delay', 5))
         batch_limit = int(request.form.get('batch_limit', 20))
+        target_category = request.form.get('target_category', 'All').strip()
         
         media_file = request.files.get('media')
         media_path = None
@@ -515,23 +578,27 @@ def campaign_new():
             media_path = f"/static/uploads/{filename}"
 
         conn = get_db_connection()
-        # Ensure we have clients to send to
-        clients = conn.execute("SELECT id FROM clients").fetchall()
+        
+        # Fetch clients based on target category
+        if target_category == 'All':
+            clients = conn.execute("SELECT id FROM clients").fetchall()
+        else:
+            clients = conn.execute("SELECT id FROM clients WHERE category = ?", (target_category,)).fetchall()
         
         if not clients:
             conn.close()
-            flash('Error: Your client database is empty. Import clients first before sending campaigns.', 'error')
+            flash(f"Error: No clients found in category '{target_category}'. Add contacts first.", 'error')
             return redirect(url_for('campaign_new'))
             
         # Create Campaign
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO campaigns (name, message_content, media_path, delay, batch_limit, status, progress) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (name, message_content, media_path, delay, batch_limit, 'Running', 0)
+            "INSERT INTO campaigns (name, message_content, media_path, delay, batch_limit, status, progress, target_category) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, message_content, media_path, delay, batch_limit, 'Running', 0, target_category)
         )
         campaign_id = cursor.lastrowid
         
-        # Pre-seed message logs as Pending for all imported clients
+        # Pre-seed message logs as Pending for targeted clients only
         for client in clients:
             conn.execute(
                 "INSERT INTO message_logs (client_id, campaign_id, status) VALUES (?, ?, ?)",
@@ -541,10 +608,16 @@ def campaign_new():
         conn.commit()
         conn.close()
         
-        flash(f"Campaign '{name}' created and launched in background.", 'success')
+        flash(f"Campaign '{name}' targeting '{target_category}' created and launched in background.", 'success')
         return redirect(url_for('campaign_detail', campaign_id=campaign_id))
         
-    return render_template('campaign_new.html', active_page='new_campaign')
+    conn = get_db_connection()
+    categories_rows = conn.execute("SELECT DISTINCT category FROM clients ORDER BY category ASC").fetchall()
+    categories = [row['category'] for row in categories_rows if row['category']]
+    total_clients = conn.execute("SELECT COUNT(*) FROM clients").fetchone()[0]
+    conn.close()
+    
+    return render_template('campaign_new.html', active_page='new_campaign', categories=categories, total_clients=total_clients)
 
 
 @app.route('/campaigns/<int:campaign_id>')
@@ -707,33 +780,54 @@ def client_simulate_reply(client_id):
 @app.route('/webhook/evolution', methods=['POST'])
 def evolution_webhook():
     try:
-        data = request.json
+        # Use get_json(force=True) to robustly parse JSON webhooks even if headers are fuzzy
+        data = request.get_json(force=True, silent=True)
         if not data:
+            logger.warning("[WEBHOOK] Received empty or invalid JSON payload.")
             return jsonify({"status": "error", "message": "No JSON payload"}), 400
             
         event = data.get("event")
         if event in ["messages.upsert", "MESSAGES_UPSERT"]:
             message_data = data.get("data", {})
             key = message_data.get("key", {})
-            from_me = key.get("fromMe", True)
+            
+            # Robustly parse Boolean / String representation of fromMe
+            from_me_raw = key.get("fromMe", True)
+            from_me = from_me_raw in [True, "true", "True", 1, "1"]
             
             if not from_me:
                 remote_jid = key.get("remoteJid", "")
+                
+                # Ignore Group Chat replies to avoid false lead triggers
+                if "@g.us" in remote_jid:
+                    logger.info("[WEBHOOK] Ignoring group chat reply in webhook.")
+                    return jsonify({"status": "success", "message": "Ignored group chat"}), 200
+                    
                 phone = remote_jid.split("@")[0] if "@" in remote_jid else remote_jid
                 phone_cleaned = "".join(filter(str.isdigit, phone))
                 
                 message_content = ""
                 msg = message_data.get("message", {})
-                if msg:
+                if msg and isinstance(msg, dict):
                     message_content = msg.get("conversation", "")
                     if not message_content and "extendedTextMessage" in msg:
-                        message_content = msg.get("extendedTextMessage", {}).get("text", "")
+                        ext_msg = msg.get("extendedTextMessage", {})
+                        if isinstance(ext_msg, dict):
+                            message_content = ext_msg.get("text", "")
                     if not message_content and "imageMessage" in msg:
-                        message_content = msg.get("imageMessage", {}).get("caption", "")
+                        img_msg = msg.get("imageMessage", {})
+                        if isinstance(img_msg, dict):
+                            message_content = img_msg.get("caption", "")
                     if not message_content and "videoMessage" in msg:
-                        message_content = msg.get("videoMessage", {}).get("caption", "")
+                        vid_msg = msg.get("videoMessage", {})
+                        if isinstance(vid_msg, dict):
+                            message_content = vid_msg.get("caption", "")
+                            
+                # Fallback to direct text field inside message data
+                if not message_content:
+                    message_content = message_data.get("text", "")
                         
-                if phone_cleaned:
+                if phone_cleaned and len(phone_cleaned) >= 10:
                     conn = get_db_connection()
                     client = conn.execute(
                         "SELECT * FROM clients WHERE whatsapp_number LIKE ?", 
@@ -754,7 +848,9 @@ def evolution_webhook():
                                 (client_id, message_content or "Media/Other Message")
                             )
                         conn.commit()
-                        logger.info(f"[WEBHOOK LEAD] Lead added/updated for client {client['name']} ({phone_cleaned})")
+                        logger.info(f"[WEBHOOK LEAD] Successfully captured hot lead for {client['name']} ({phone_cleaned}) - Message: {message_content[:30]}")
+                    else:
+                        logger.info(f"[WEBHOOK] Received message from unknown contact ({phone_cleaned}). Skipping lead capture.")
                     conn.close()
                     
         return jsonify({"status": "success"}), 200
@@ -805,4 +901,5 @@ def hot_lead_delete(lead_id):
 
 if __name__ == '__main__':
     import sqlite3
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)

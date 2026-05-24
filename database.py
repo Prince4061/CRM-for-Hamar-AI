@@ -1,7 +1,8 @@
 import sqlite3
 import os
 
-DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'crm.db')
+# Use custom database path from environment variable (critical for Render persistent disks)
+DATABASE_PATH = os.environ.get('DATABASE_PATH') or os.path.join(os.path.dirname(__file__), 'crm.db')
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE_PATH, timeout=30)
@@ -17,7 +18,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS clients (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            whatsapp_number TEXT NOT NULL UNIQUE
+            whatsapp_number TEXT NOT NULL UNIQUE,
+            category TEXT DEFAULT 'General'
         )
     ''')
     
@@ -32,7 +34,8 @@ def init_db():
             batch_limit INTEGER DEFAULT 20,
             progress INTEGER DEFAULT 0,
             status TEXT DEFAULT 'Pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            target_category TEXT DEFAULT 'All'
         )
     ''')
     
@@ -61,6 +64,19 @@ def init_db():
             FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
         )
     ''')
+    
+    # --- Migration Logic for existing tables ---
+    # Check clients table
+    cursor.execute("PRAGMA table_info(clients)")
+    client_columns = [row[1] for row in cursor.fetchall()]
+    if 'category' not in client_columns:
+        cursor.execute("ALTER TABLE clients ADD COLUMN category TEXT DEFAULT 'General'")
+        
+    # Check campaigns table
+    cursor.execute("PRAGMA table_info(campaigns)")
+    campaign_columns = [row[1] for row in cursor.fetchall()]
+    if 'target_category' not in campaign_columns:
+        cursor.execute("ALTER TABLE campaigns ADD COLUMN target_category TEXT DEFAULT 'All'")
     
     conn.commit()
     conn.close()

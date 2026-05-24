@@ -18,6 +18,20 @@
                 </div>
                 
                 <div class="mb-4">
+                    <label for="targetCategory" class="form-label">Target Client Category</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-primary border-color text-secondary"><i class="fa-solid fa-filter"></i></span>
+                        <select id="targetCategory" name="target_category" class="form-select bg-primary border-color text-white" style="color: var(--text-primary) !important;" required>
+                            <option value="All" selected>All Clients ({{ total_clients }})</option>
+                            {% for cat in categories %}
+                            <option value="{{ cat }}">{{ cat }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-text text-secondary small">Filter and send this broadcast to specific client lists only.</div>
+                </div>
+                
+                <div class="mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <label for="messageContent" class="form-label mb-0">Message Template</label>
                         <span class="text-secondary small">Use <code class="accent-text">{name}</code> to personalize</span>
