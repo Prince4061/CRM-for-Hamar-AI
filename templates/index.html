@@ -6,7 +6,7 @@
 {% block content %}
 <!-- Metric Cards -->
 <div class="row g-4 mb-5">
-    <div class="col-12 col-sm-6 col-xl-3">
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
         <div class="glass-card stat-card">
             <div class="stat-icon primary">
                 <i class="fa-solid fa-users"></i>
@@ -18,19 +18,19 @@
         </div>
     </div>
     
-    <div class="col-12 col-sm-6 col-xl-3">
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
         <div class="glass-card stat-card">
             <div class="stat-icon success">
                 <i class="fa-solid fa-bullhorn"></i>
             </div>
             <div class="stat-details">
                 <span class="stat-value">{{ metrics.total_campaigns }}</span>
-                <span class="stat-label">Total Campaigns</span>
+                <span class="stat-label">Campaigns</span>
             </div>
         </div>
     </div>
     
-    <div class="col-12 col-sm-6 col-xl-3">
+    <div class="col-12 col-sm-6 col-md-4 col-xl-2">
         <div class="glass-card stat-card">
             <div class="stat-icon warning">
                 <i class="fa-solid fa-paper-plane"></i>
@@ -42,9 +42,9 @@
         </div>
     </div>
     
-    <div class="col-12 col-sm-6 col-xl-3">
+    <div class="col-12 col-sm-6 col-md-6 col-xl-3">
         <div class="glass-card stat-card">
-            <div class="stat-icon danger">
+            <div class="stat-icon info">
                 <i class="fa-solid fa-circle-check"></i>
             </div>
             <div class="stat-details">
@@ -53,77 +53,213 @@
             </div>
         </div>
     </div>
-</div>
 
-<!-- Recent Campaigns Table -->
-<div class="glass-card mb-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h5 class="fw-bold mb-1">Recent Outreach Campaigns</h5>
-            <p class="text-secondary small mb-0">Track and manage your automated WhatsApp delivery sequences.</p>
+    <div class="col-12 col-sm-12 col-md-6 col-xl-3">
+        <div class="glass-card stat-card border-hot-lead">
+            <div class="stat-icon danger bg-hot-lead">
+                <i class="fa-solid fa-fire text-white animate-pulse-slow"></i>
+            </div>
+            <div class="stat-details">
+                <span class="stat-value text-danger-gradient">{{ metrics.total_hot_leads }}</span>
+                <span class="stat-label fw-bold text-danger">Hot Leads</span>
+            </div>
         </div>
-        <a href="{{ url_for('campaign_new') }}" class="btn btn-primary btn-sm">
-            <i class="fa-solid fa-plus me-2"></i>New Campaign
-        </a>
+    </div>
+</div>
+
+<!-- Main Dashboard Grid -->
+<div class="row g-4 mb-5">
+    <!-- Recent Campaigns -->
+    <div class="col-12 col-xl-8">
+        <div class="glass-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                <div>
+                    <h5 class="fw-bold mb-1">Recent Campaigns</h5>
+                    <p class="text-secondary small mb-0">Track and manage your automated WhatsApp sequences.</p>
+                </div>
+                <a href="{{ url_for('campaign_new') }}" class="btn btn-primary btn-sm">
+                    <i class="fa-solid fa-plus me-2"></i>New Campaign
+                </a>
+            </div>
+
+            {% if campaigns %}
+            <div class="table-responsive">
+                <table class="custom-table w-100">
+                    <thead>
+                        <tr>
+                            <th>Campaign</th>
+                            <th>Created At</th>
+                            <th>Status</th>
+                            <th>Progress</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for campaign in campaigns %}
+                        <tr>
+                            <td>
+                                <span class="fw-semibold d-block">{{ campaign.name }}</span>
+                                <span class="small text-secondary text-truncate d-inline-block" style="max-width: 250px;">
+                                    {{ campaign.message_content }}
+                                </span>
+                            </td>
+                            <td class="small text-secondary">{{ campaign.created_at }}</td>
+                            <td>
+                                <span class="status-badge {{ campaign.status.lower() }}">
+                                    <span class="status-indicator {{ 'online' if campaign.status == 'Running' else 'idle' }}"></span>
+                                    {{ campaign.status }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="progress-bar-custom flex-grow-1" style="width: 80px;">
+                                        <div class="progress-bar-fill" style="width: {{ campaign.progress }}%;"></div>
+                                    </div>
+                                    <span class="small fw-semibold">{{ campaign.progress }}%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('campaign_detail', campaign_id=campaign.id) }}" class="btn btn-secondary btn-sm px-2">
+                                    <i class="fa-solid fa-eye me-1"></i>Logs
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fa-solid fa-bullhorn text-secondary fs-1 mb-3 opacity-50"></i>
+                <h6 class="fw-bold">No campaigns created yet</h6>
+                <p class="text-secondary small mb-4">Start your first WhatsApp outreach campaign right away.</p>
+                <a href="{{ url_for('campaign_new') }}" class="btn btn-primary">
+                    <i class="fa-solid fa-plus me-2"></i>Create Campaign
+                </a>
+            </div>
+            {% endif %}
+        </div>
     </div>
 
-    {% if campaigns %}
-    <div class="table-responsive">
-        <table class="custom-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Campaign Name</th>
-                    <th>Created At</th>
-                    <th>Status</th>
-                    <th>Progress</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for campaign in campaigns %}
-                <tr>
-                    <td class="fw-bold">#{{ campaign.id }}</td>
-                    <td>
-                        <span class="fw-semibold">{{ campaign.name }}</span>
-                        <div class="text-secondary small text-truncate" style="max-width: 300px;">
-                            {{ campaign.message_content }}
+    <!-- Recent Hot Leads -->
+    <div class="col-12 col-xl-4">
+        <div class="glass-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                <div>
+                    <h5 class="fw-bold mb-1">
+                        <i class="fa-solid fa-fire text-danger me-1"></i>Hot Leads
+                    </h5>
+                    <p class="text-secondary small mb-0">Latest incoming client replies.</p>
+                </div>
+                <a href="{{ url_for('hot_leads') }}" class="btn btn-outline-danger btn-sm">
+                    View All
+                </a>
+            </div>
+
+            {% if recent_leads %}
+            <div class="recent-leads-list">
+                {% for lead in recent_leads %}
+                <div class="lead-item p-3 mb-2 rounded border">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <span class="fw-semibold d-block">{{ lead.name }}</span>
+                            <span class="small text-secondary font-monospace">+{{ lead.whatsapp_number }}</span>
                         </div>
-                    </td>
-                    <td>{{ campaign.created_at }}</td>
-                    <td>
-                        <span class="status-badge {{ campaign.status.lower() }}">
-                            <span class="status-indicator {{ 'online' if campaign.status == 'Running' else 'idle' }}"></span>
-                            {{ campaign.status }}
+                        <span class="badge rounded-pill bg-lead-status-{{ lead.status.lower() }}">
+                            {{ lead.status }}
                         </span>
-                    </td>
-                    <td>
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="progress-bar-custom flex-grow-1" style="width: 100px;">
-                                <div class="progress-bar-fill" style="width: {{ campaign.progress }}%;"></div>
-                            </div>
-                            <span class="small fw-semibold">{{ campaign.progress }}%</span>
-                        </div>
-                    </td>
-                    <td>
-                        <a href="{{ url_for('campaign_detail', campaign_id=campaign.id) }}" class="btn btn-secondary btn-sm px-3">
-                            <i class="fa-solid fa-eye me-1"></i>View Logs
+                    </div>
+                    <div class="reply-snippet mb-2">
+                        <i class="fa-solid fa-reply text-secondary me-1"></i>
+                        <span class="small text-body">{{ lead.last_message|truncate(60) }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="small text-secondary" style="font-size: 0.75rem;">{{ lead.replied_at }}</span>
+                        <a href="https://wa.me/{{ lead.whatsapp_number }}" target="_blank" class="btn btn-success btn-sm text-white px-2 py-0" style="font-size: 0.8rem;">
+                            <i class="fa-brands fa-whatsapp"></i> Chat
                         </a>
-                    </td>
-                </tr>
+                    </div>
+                </div>
                 {% endfor %}
-            </tbody>
-        </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fa-solid fa-fire text-secondary fs-1 mb-3 opacity-30"></i>
+                <h6 class="fw-bold">No replies yet</h6>
+                <p class="text-secondary small">Active campaigns will automatically capture client replies and log them here.</p>
+            </div>
+            {% endif %}
+        </div>
     </div>
-    {% else %}
-    <div class="text-center py-5">
-        <i class="fa-solid fa-bullhorn text-secondary fs-1 mb-3 opacity-50"></i>
-        <h6 class="fw-bold">No campaigns created yet</h6>
-        <p class="text-secondary small mb-4">Start your first WhatsApp outreach campaign right away.</p>
-        <a href="{{ url_for('campaign_new') }}" class="btn btn-primary">
-            <i class="fa-solid fa-plus me-2"></i>Create Campaign
-        </a>
-    </div>
-    {% endif %}
 </div>
+
+<style>
+/* Custom Dashboard Styles */
+.border-hot-lead {
+    border: 1px solid rgba(255, 59, 48, 0.25) !important;
+    background: linear-gradient(135deg, rgba(255, 59, 48, 0.03) 0%, rgba(255, 149, 0, 0.03) 100%) !important;
+    box-shadow: 0 8px 32px 0 rgba(255, 59, 48, 0.06) !important;
+}
+.bg-hot-lead {
+    background: linear-gradient(135deg, #ff3b30 0%, #ff9500 100%) !important;
+    box-shadow: 0 4px 15px rgba(255, 59, 48, 0.3) !important;
+}
+.text-danger-gradient {
+    background: linear-gradient(135deg, #ff3b30 0%, #ff9500 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800;
+}
+.animate-pulse-slow {
+    animation: pulse 2.5s infinite;
+}
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.15); opacity: 0.8; }
+}
+
+.lead-item {
+    background: rgba(255, 255, 255, 0.015);
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    transition: all 0.2s ease;
+}
+.lead-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    transform: translateY(-2px);
+}
+[data-theme="light"] .lead-item {
+    background: rgba(0, 0, 0, 0.01);
+    border-color: rgba(0, 0, 0, 0.08) !important;
+}
+[data-theme="light"] .lead-item:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.reply-snippet {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 6px 10px;
+    border-radius: 4px;
+    border-left: 2px solid #ff3b30;
+}
+[data-theme="light"] .reply-snippet {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.bg-lead-status-new {
+    background-color: rgba(0, 122, 255, 0.15);
+    color: #007aff;
+}
+.bg-lead-status-contacted {
+    background-color: rgba(255, 149, 0, 0.15);
+    color: #ff9500;
+}
+.bg-lead-status-won {
+    background-color: rgba(52, 199, 89, 0.15);
+    color: #34c759;
+}
+.bg-lead-status-lost {
+    background-color: rgba(255, 59, 48, 0.15);
+    color: #ff3b30;
+}
+</style>
 {% endblock %}

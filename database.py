@@ -50,6 +50,18 @@ def init_db():
         )
     ''')
     
+    # Create hot_leads table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS hot_leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER NOT NULL UNIQUE,
+            last_message TEXT,
+            replied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'New', -- 'New', 'Contacted', 'Won', 'Lost'
+            FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 

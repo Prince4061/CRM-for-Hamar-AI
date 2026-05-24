@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Hot Leads - Hamar AI Outreach CRM{% endblock %}
+{% block page_title %}Hot Leads (Client Replies){% endblock %}
+
+{% block content %}
+<div class="glass-card mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h5 class="fw-bold mb-1">
+                <i class="fa-solid fa-fire text-danger me-2 animate-pulse"></i>Hot Leads Registry
+            </h5>
+            <p class="text-secondary small mb-0">These are clients who replied to your campaigns. Track and convert them here.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <span class="badge bg-danger px-3 py-2 fs-6 rounded-pill">
+                {{ leads|length }} Hot Lead{{ 's' if leads|length != 1 else '' }}
+            </span>
+        </div>
+    </div>
+
+    {% if leads %}
+    <div class="mb-4">
+        <div class="input-group">
+            <span class="input-group-text bg-primary border-color text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+            <input type="text" id="leadSearch" class="form-control" placeholder="Search leads by name, phone, message or status...">
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="custom-table w-100" id="leadsTable">
+            <thead>
+                <tr>
+                    <th>Lead Name</th>
+                    <th>WhatsApp Number</th>
+                    <th>Last Received Message</th>
+                    <th>Replied At</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lead in leads %}
+                <tr>
+                    <td class="fw-bold">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="avatar" style="width: 32px; height: 32px; font-size: 12px; margin-right: 0;">
+                                {{ lead.name[:2]|upper }}
+                            </div>
+                            <div class="d-flex flex-column">
+                                <span class="fw-semibold">{{ lead.name }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="fw-semibold">
+                        <a href="https://wa.me/{{ lead.whatsapp_number }}" target="_blank" class="text-accent text-decoration-none">
+                            <i class="fa-brands fa-whatsapp text-success me-1"></i>+{{ lead.whatsapp_number }}
+                        </a>
+                    </td>
+                    <td>
+                        <div class="reply-bubble">
+                            <i class="fa-solid fa-reply text-secondary me-1"></i>
+                            <span class="text-body font-monospace">{{ lead.last_message }}</span>
+                        </div>
+                    </td>
+                    <td class="small text-secondary">{{ lead.replied_at }}</td>
+                    <td>
+                        <form action="{{ url_for('hot_lead_status', lead_id=lead.id) }}" method="POST" class="d-inline m-0">
+                            <select name="status" class="form-select form-select-sm status-select status-{{ lead.status.lower() }}" onchange="this.form.submit()">
+                                <option value="New" {% if lead.status == 'New' %}selected{% endif %}>New</option>
+                                <option value="Contacted" {% if lead.status == 'Contacted' %}selected{% endif %}>Contacted</option>
+                                <option value="Won" {% if lead.status == 'Won' %}selected{% endif %}>Won (Converted)</option>
+                                <option value="Lost" {% if lead.status == 'Lost' %}selected{% endif %}>Lost</option>
+                            </select>
+                        </form>
+                    </td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <a href="https://wa.me/{{ lead.whatsapp_number }}" target="_blank" class="btn btn-success btn-sm px-2 text-white" title="Chat on WhatsApp">
+                                <i class="fa-solid fa-comment"></i> Reply
+                            </a>
+                            <form id="delete-lead-{{ lead.id }}" action="{{ url_for('hot_lead_delete', lead_id=lead.id) }}" method="POST" class="d-inline m-0">
+                                <button type="button" onclick="if(confirm('Are you sure you want to remove this lead from Hot Leads?')) document.getElementById('delete-lead-{{ lead.id }}').submit();" class="btn btn-outline-danger btn-sm px-2" title="Remove Lead">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <div class="fire-icon-wrapper mb-3">
+            <i class="fa-solid fa-fire text-secondary fs-1 opacity-20"></i>
+        </div>
+        <h6 class="fw-bold">No hot leads yet</h6>
+        <p class="text-secondary small mb-4">When clients reply to your campaign messages, they will automatically appear here as hot leads.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+/* Specific Styles for Hot Leads Page */
+.animate-pulse {
+    animation: pulse 1.8s infinite;
+}
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.1);
+    }
+}
+.reply-bubble {
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 3px solid var(--accent-color, #ff3b30);
+    padding: 6px 12px;
+    border-radius: 4px 8px 8px 4px;
+    font-size: 0.88rem;
+    max-width: 320px;
+    word-break: break-word;
+}
+[data-theme="light"] .reply-bubble {
+    background: rgba(0, 0, 0, 0.04);
+}
+.status-select {
+    width: 130px;
+    font-weight: 600;
+    border-radius: 20px;
+    padding: 0.25rem 1.5rem 0.25rem 0.75rem;
+    background-size: 10px 10px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.status-select.status-new {
+    background-color: rgba(0, 122, 255, 0.15);
+    color: #007aff;
+    border-color: rgba(0, 122, 255, 0.3);
+}
+.status-select.status-contacted {
+    background-color: rgba(255, 149, 0, 0.15);
+    color: #ff9500;
+    border-color: rgba(255, 149, 0, 0.3);
+}
+.status-select.status-won {
+    background-color: rgba(52, 199, 89, 0.15);
+    color: #34c759;
+    border-color: rgba(52, 199, 89, 0.3);
+}
+.status-select.status-lost {
+    background-color: rgba(255, 59, 48, 0.15);
+    color: #ff3b30;
+    border-color: rgba(255, 59, 48, 0.3);
+}
+.fire-icon-wrapper {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.02);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('leadSearch')?.addEventListener('keyup', function() {
+    const query = this.value.toLowerCase();
+    const rows = document.querySelectorAll('#leadsTable tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        if (text.includes(query)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -43,6 +43,14 @@
                     <i class="fa-solid fa-list-check"></i>
                     <span>Campaign Logs</span>
                 </a>
+                <a href="{{ url_for('hot_leads') }}" class="nav-item {% if active_page == 'hot_leads' %}active{% endif %}">
+                    <i class="fa-solid fa-fire text-danger"></i>
+                    <span>Hot Leads</span>
+                </a>
+                <a href="{{ url_for('settings_page') }}" class="nav-item {% if active_page == 'settings' %}active{% endif %}">
+                    <i class="fa-solid fa-gears"></i>
+                    <span>WhatsApp Settings</span>
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <div class="user-profile">

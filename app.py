@@ -58,6 +58,45 @@ def normalize_phone(phone_str):
 # Initialize DB on Startup
 init_db()
 
+def simulate_customer_reply(client_id, client_name):
+    # Wait to simulate realistic delay
+    time.sleep(5)
+    try:
+        conn = get_db_connection()
+        client = conn.execute("SELECT * FROM clients WHERE id = ?", (client_id,)).fetchone()
+        if not client:
+            conn.close()
+            return
+            
+        import random
+        replies = [
+            "Hi, what is the down payment?",
+            "Interested, please share the location map.",
+            "Is this property still available?",
+            "What is the exact price?",
+            "Can I schedule a visit tomorrow?",
+            "Are there any 3BHK options?",
+            "Is the price negotiable?"
+        ]
+        chosen_reply = random.choice(replies)
+        
+        lead = conn.execute("SELECT id FROM hot_leads WHERE client_id = ?", (client_id,)).fetchone()
+        if lead:
+            conn.execute(
+                "UPDATE hot_leads SET last_message = ?, replied_at = CURRENT_TIMESTAMP, status = 'New' WHERE client_id = ?",
+                (chosen_reply, client_id)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO hot_leads (client_id, last_message, replied_at, status) VALUES (?, ?, CURRENT_TIMESTAMP, 'New')",
+                (client_id, chosen_reply)
+            )
+        conn.commit()
+        conn.close()
+        logger.info(f"[SIMULATED REPLY] Client {client_name} (ID: {client_id}) replied: {chosen_reply}")
+    except Exception as e:
+        logger.error(f"Error in simulated reply: {e}")
+
 # --- Background Queue Worker Loop ---
 def campaign_worker_loop():
     logger.info("Background campaign worker started.")
@@ -171,6 +210,18 @@ def campaign_worker_loop():
                     (new_status, error_msg, log_id)
                 )
                 conn.commit()
+
+                # Trigger simulated customer reply if sent successfully
+                if success:
+                    import random
+                    # If simulation mode is active or as a 25% demo chance
+                    if not api.is_configured() or random.random() < 0.25:
+                        reply_thread = threading.Thread(
+                            target=simulate_customer_reply,
+                            args=(log['client_id'], recipient_name),
+                            daemon=True
+                        )
+                        reply_thread.start()
                 
                 sent_in_batch += 1
                 
@@ -255,6 +306,9 @@ def dashboard():
     sent_logs = conn.execute("SELECT COUNT(*) FROM message_logs WHERE status = 'Sent'").fetchone()[0]
     failed_logs = conn.execute("SELECT COUNT(*) FROM message_logs WHERE status = 'Failed'").fetchone()[0]
     
+    # Hot leads count
+    total_hot_leads = conn.execute("SELECT COUNT(*) FROM hot_leads").fetchone()[0]
+    
     total_logs = sent_logs + failed_logs
     success_rate = 100
     if total_logs > 0:
@@ -264,15 +318,26 @@ def dashboard():
         "total_clients": total_clients,
         "total_campaigns": total_campaigns,
         "total_sent": sent_logs,
-        "success_rate": success_rate
+        "success_rate": success_rate,
+        "total_hot_leads": total_hot_leads
     }
     
     # Get campaigns
     campaigns_rows = conn.execute("SELECT * FROM campaigns ORDER BY id DESC LIMIT 5").fetchall()
     campaigns = [dict(row) for row in campaigns_rows]
     
+    # Get recent hot leads
+    recent_leads_rows = conn.execute('''
+        SELECT hl.*, c.name, c.whatsapp_number
+        FROM hot_leads hl
+        JOIN clients c ON hl.client_id = c.id
+        ORDER BY hl.replied_at DESC
+        LIMIT 5
+    ''').fetchall()
+    recent_leads = [dict(row) for row in recent_leads_rows]
+    
     conn.close()
-    return render_template('index.html', active_page='dashboard', metrics=metrics, campaigns=campaigns)
+    return render_template('index.html', active_page='dashboard', metrics=metrics, campaigns=campaigns, recent_leads=recent_leads)
 
 
 @app.route('/clients')
@@ -585,6 +650,102 @@ def settings_page():
         
     settings = load_settings()
     return render_template('settings.html', settings=settings, active_page='settings')
+
+
+# --- Webhook and Hot Leads Routes ---
+
+@app.route('/webhook/evolution', methods=['POST'])
+def evolution_webhook():
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"status": "error", "message": "No JSON payload"}), 400
+            
+        event = data.get("event")
+        if event in ["messages.upsert", "MESSAGES_UPSERT"]:
+            message_data = data.get("data", {})
+            key = message_data.get("key", {})
+            from_me = key.get("fromMe", True)
+            
+            if not from_me:
+                remote_jid = key.get("remoteJid", "")
+                phone = remote_jid.split("@")[0] if "@" in remote_jid else remote_jid
+                phone_cleaned = "".join(filter(str.isdigit, phone))
+                
+                message_content = ""
+                msg = message_data.get("message", {})
+                if msg:
+                    message_content = msg.get("conversation", "")
+                    if not message_content and "extendedTextMessage" in msg:
+                        message_content = msg.get("extendedTextMessage", {}).get("text", "")
+                    if not message_content and "imageMessage" in msg:
+                        message_content = msg.get("imageMessage", {}).get("caption", "")
+                    if not message_content and "videoMessage" in msg:
+                        message_content = msg.get("videoMessage", {}).get("caption", "")
+                        
+                if phone_cleaned:
+                    conn = get_db_connection()
+                    client = conn.execute(
+                        "SELECT * FROM clients WHERE whatsapp_number LIKE ?", 
+                        (f"%{phone_cleaned[-10:]}",)
+                    ).fetchone()
+                    
+                    if client:
+                        client_id = client['id']
+                        lead = conn.execute("SELECT id FROM hot_leads WHERE client_id = ?", (client_id,)).fetchone()
+                        if lead:
+                            conn.execute(
+                                "UPDATE hot_leads SET last_message = ?, replied_at = CURRENT_TIMESTAMP, status = 'New' WHERE client_id = ?",
+                                (message_content or "Media/Other Message", client_id)
+                            )
+                        else:
+                            conn.execute(
+                                "INSERT INTO hot_leads (client_id, last_message, replied_at, status) VALUES (?, ?, CURRENT_TIMESTAMP, 'New')",
+                                (client_id, message_content or "Media/Other Message")
+                            )
+                        conn.commit()
+                        logger.info(f"[WEBHOOK LEAD] Lead added/updated for client {client['name']} ({phone_cleaned})")
+                    conn.close()
+                    
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        logger.error(f"Error in webhook: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/hot-leads')
+def hot_leads():
+    conn = get_db_connection()
+    leads_rows = conn.execute('''
+        SELECT hl.*, c.name, c.whatsapp_number
+        FROM hot_leads hl
+        JOIN clients c ON hl.client_id = c.id
+        ORDER BY hl.replied_at DESC
+    ''').fetchall()
+    leads = [dict(row) for row in leads_rows]
+    conn.close()
+    return render_template('hot_leads.html', active_page='hot_leads', leads=leads)
+
+
+@app.route('/hot-leads/<int:lead_id>/status', methods=['POST'])
+def hot_lead_status(lead_id):
+    status = request.form.get('status', 'New')
+    conn = get_db_connection()
+    conn.execute("UPDATE hot_leads SET status = ? WHERE id = ?", (status, lead_id))
+    conn.commit()
+    conn.close()
+    flash('Lead status updated successfully.', 'success')
+    return redirect(url_for('hot_leads'))
+
+
+@app.route('/hot-leads/<int:lead_id>/delete', methods=['POST'])
+def hot_lead_delete(lead_id):
+    conn = get_db_connection()
+    conn.execute("DELETE FROM hot_leads WHERE id = ?", (lead_id,))
+    conn.commit()
+    conn.close()
+    flash('Lead removed from Hot Leads.', 'success')
+    return redirect(url_for('hot_leads'))
 
 
 if __name__ == '__main__':
