@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}All Campaigns - Hamar AI Outreach CRM{% endblock %}
+{% block page_title %}Campaign History & Registers{% endblock %}
+
+{% block content %}
+<div class="glass-card mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h5 class="fw-bold mb-1">Campaign Registry</h5>
+            <p class="text-secondary small mb-0">Browse and manage all previous and current WhatsApp marketing campaigns.</p>
+        </div>
+        <a href="{{ url_for('campaign_new') }}" class="btn btn-primary">
+            <i class="fa-solid fa-plus me-2"></i>New Campaign
+        </a>
+    </div>
+
+    {% if campaigns %}
+    <div class="mb-3">
+        <div class="input-group">
+            <span class="input-group-text bg-primary border-color text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+            <input type="text" id="campaignSearch" class="form-control" placeholder="Search campaigns by name, status, or date...">
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="custom-table w-100" id="campaignsTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Message Snippet</th>
+                    <th>Created At</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for campaign in campaigns %}
+                <tr>
+                    <td class="fw-bold">#{{ campaign.id }}</td>
+                    <td class="fw-semibold">{{ campaign.name }}</td>
+                    <td class="small text-secondary text-truncate" style="max-width: 250px;">{{ campaign.message_content }}</td>
+                    <td class="small text-secondary">{{ campaign.created_at }}</td>
+                    <td>
+                        <span class="status-badge {{ campaign.status.lower() }}">
+                            <span class="status-indicator {{ 'online' if campaign.status == 'Running' else 'idle' }}"></span>
+                            {{ campaign.status }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="progress-bar-custom flex-grow-1" style="width: 80px;">
+                                <div class="progress-bar-fill" style="width: {{ campaign.progress }}%;"></div>
+                            </div>
+                            <span class="small fw-semibold">{{ campaign.progress }}%</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('campaign_detail', campaign_id=campaign.id) }}" class="btn btn-secondary btn-sm px-2">
+                                <i class="fa-solid fa-eye me-1"></i>View Logs
+                            </a>
+                            <form id="delete-campaign-{{ campaign.id }}" action="{{ url_for('campaign_delete', campaign_id=campaign.id) }}" method="POST" class="d-inline m-0">
+                                <button type="button" onclick="if(confirm('Delete this campaign and all its logs permanently?')) document.getElementById('delete-campaign-{{ campaign.id }}').submit();" class="btn btn-outline-danger btn-sm px-2" title="Delete Campaign">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fa-solid fa-folder-open text-secondary fs-1 mb-3 opacity-50"></i>
+        <h6 class="fw-bold">No campaigns found</h6>
+        <p class="text-secondary small mb-4">You haven't run any campaigns yet. Let's create your first one.</p>
+        <a href="{{ url_for('campaign_new') }}" class="btn btn-primary">
+            <i class="fa-solid fa-plus me-2"></i>Create Campaign
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Filter table rows
+document.getElementById('campaignSearch')?.addEventListener('keyup', function() {
+    const query = this.value.toLowerCase();
+    const rows = document.querySelectorAll('#campaignsTable tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        if (text.includes(query)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}

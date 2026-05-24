@@ -1,0 +1,1053 @@
+{
+  "name": "Real Esate Ai agent - Updated",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hamar-properties-bot",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -800,
+        160
+      ],
+      "id": "70039db4-f305-4ee2-8fd5-5e1dd5af7338",
+      "name": "Webhook",
+      "webhookId": "hamar-properties-bot"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.body.data.key.fromMe }}"
+            }
+          ],
+          "string": [
+            {
+              "value1": "={{ $json.body.data.key.remoteJid }}",
+              "operation": "endsWith",
+              "value2": "@s.whatsapp.net"
+            }
+          ]
+        }
+      },
+      "name": "Filter Personal Messages",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        160
+      ],
+      "id": "7c392435-3977-4a42-878d-482dc946b8f4"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.body.data.messageType }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "conversation"
+            },
+            {
+              "value2": "extendedTextMessage"
+            },
+            {
+              "value2": "imageMessage",
+              "output": 1
+            },
+            {
+              "value2": "audioMessage",
+              "output": 2
+            },
+            {
+              "value2": "pttMessage",
+              "output": 2
+            }
+          ]
+        },
+        "fallbackOutput": 0
+      },
+      "name": "Message Type Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        112
+      ],
+      "id": "18300d33-7cd6-4059-b9fa-23c9722b29cb"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "userMessage",
+              "value": "={{ $json.body.data.message.conversation || $json.body.data.message.extendedTextMessage?.text || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "messageType",
+              "value": "text",
+              "type": "string"
+            },
+            {
+              "name": "from",
+              "value": "={{ $json.body.data.key.remoteJid }}",
+              "type": "string"
+            },
+            {
+              "name": "instanceName",
+              "value": "={{ $json.body.instance }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Prepare Text",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        176,
+        -112
+      ],
+      "id": "24e6b362-df73-46e3-b8c9-ba0bfcde3f98"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://72.60.211.205:8080/chat/getBase64FromMediaMessage/{{ $json.body.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "CHANGE_THIS_TO_A_STRONG_PASSWORD"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: { key: $json.body.data.key, messageType: $json.body.data.messageType, message: $json.body.data.message } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        48,
+        160
+      ],
+      "name": "Get Audio Base64 (Evo API)",
+      "id": "ae88f220-c43c-4340-97fe-e343bc60f030"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base64Audio = $input.first().json.base64;\nconst mimetype = $input.first().json.mimetype || 'audio/ogg; codecs=opus';\nif (!base64Audio) throw new Error('Base64 audio nahi mila');\nreturn [{ json: { message: 'Audio binary ready' }, binary: { data: await this.helpers.prepareBinaryData(Buffer.from(base64Audio, 'base64'), 'voice_message.ogg', 'audio/ogg') } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        160
+      ],
+      "name": "Base64 to Binary Audio",
+      "id": "89013aad-1dea-498e-9654-d3db17d347ec"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {
+          "language": "hi"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [
+        512,
+        160
+      ],
+      "name": "Transcribe Audio",
+      "id": "ccc591d1-b269-4735-b1ed-4a9160de2025",
+      "credentials": {
+        "openAiApi": {
+          "id": "vVy6nvCo7huPsdwj",
+          "name": "Tirupati"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "userMessage",
+              "value": "=User ne voice message bheja (transcribed): {{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "name": "messageType",
+              "value": "audio",
+              "type": "string"
+            },
+            {
+              "name": "from",
+              "value": "={{ $('Message Type Switch').item.json.body.data.key.remoteJid }}",
+              "type": "string"
+            },
+            {
+              "name": "instanceName",
+              "value": "={{ $('Message Type Switch').item.json.body.instance }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Prepare Audio Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        752,
+        160
+      ],
+      "id": "29cf99fa-4bc8-4067-a7bb-a50e3063fa7b"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.5
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        816,
+        480
+      ],
+      "name": "GPT-4o-mini",
+      "id": "4bae209a-c52d-428f-8c64-639d4bcb4490",
+      "credentials": {
+        "openAiApi": {
+          "id": "vVy6nvCo7huPsdwj",
+          "name": "Tirupati"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.from }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.5,
+      "position": [
+        1008,
+        480
+      ],
+      "name": "Redis Chat Memory",
+      "id": "16fb8402-5a4d-411b-9e2b-4b3059c012ab",
+      "credentials": {
+        "redis": {
+          "id": "gNxdiFSZeKiFy2SG",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Search available properties (Plot/Flat/Villa) from the inventory. Use this when user asks about any property. You can filter by type, location, budget.",
+        "documentId": {
+          "__rl": true,
+          "value": "1PQdA1gMh1-raZ6qDHH7edfcZ2fRrdYCiHLL-WfG3uls",
+          "mode": "list",
+          "cachedResultName": "properties_inventory",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQdA1gMh1-raZ6qDHH7edfcZ2fRrdYCiHLL-WfG3uls/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQdA1gMh1-raZ6qDHH7edfcZ2fRrdYCiHLL-WfG3uls/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        1184,
+        480
+      ],
+      "name": "Search_Property",
+      "id": "1b872ddc-9193-4a4f-80cd-fbb39d266de7",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6bZut4nZsD9yCd9l",
+          "name": "Lofi CG"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "Send_Property_Image",
+        "description": "Property ki image aur details directly user ke WhatsApp par bhejta hai. Parameters: {\"imageUrl\": \"https://...\", \"caption\": \"Property details text\", \"phone\": \"91XXXXXXXXXX\", \"inst\": \"prince\"}",
+        "jsCode": "// 1. Input data read karne ka setup\nlet data = {};\ntry {\n  if (typeof query !== 'undefined') {\n    data = typeof query === 'string' ? JSON.parse(query) : query;\n  } else if ($input.all() && $input.all().length > 0) {\n    data = $input.all()[0].json;\n  }\n} catch(e) {\n  data = $input.all()[0].json || {};\n}\n\nif (data.input) {\n  try {\n    const inner = typeof data.input === 'string' ? JSON.parse(data.input) : data.input;\n    Object.assign(data, inner);\n  } catch(ex) {}\n}\n\n// 2. Phone Number Extraction & Smart Cleaning\nlet phone = data.phone || data.number;\n\nif (phone) {\n  phone = phone.toString().replace('@s.whatsapp.net', '').replace('+', '').trim();\n  \n  // LOGIC: Agar galti se double 91 lag gaya ho (jaise 91916263...), toh ek 91 hata dein\n  if (phone.startsWith('9191') && phone.length > 12) {\n    phone = phone.substring(2);\n  }\n}\n\n// 3. Configurations\nconst evo = 'http://72.60.211.205:8080';\nconst key = 'CHANGE_THIS_TO_A_STRONG_PASSWORD'; // <-- Apna Evolution API ka sahi password check kar lena\nconst inst = 'qsai'; \nconst imageUrl = data.imageUrl || data.image_url || data.Image || data.Photo;\n\n// 4. Validations\nif (!imageUrl || !imageUrl.startsWith('http')) {\n  return \"Error: Google Sheet se property ki photo ka valid link nahi mila.\";\n}\n\nif (!phone) {\n  return \"Error: Customer ka WhatsApp number nahi mil paya.\";\n}\n\n// 5. API Request\ntry {\n  await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${evo}/message/sendMedia/${inst}`,\n    headers: { \n      'apikey': key, \n      'Content-Type': 'application/json' \n    },\n    timeout: 7000,\n    body: JSON.stringify({\n      number: phone,\n      mediatype: 'image',\n      mimetype: 'image/jpeg',\n      media: imageUrl,\n      caption: data.caption || 'Hamar Properties'\n    })\n  });\n  \n  return \"Success: Property ki image successfully WhatsApp par bhej di gayi hai!\";\n} catch(e) {\n  return \"API Error: Image nahi bheji ja saki. Wajah: \" + e.message;\n}",
+        "specifyInputSchema": true,
+        "jsonSchemaExample": "{\n  \"imageUrl\": \"https://example.com/image.jpg\",\n  \"caption\": \"Property details\",\n  \"phone\": \"916263210328\",\n  \"inst\": \"qsai\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1,
+      "position": [
+        1376,
+        480
+      ],
+      "name": "Send_Property_Image",
+      "id": "4205fbe0-ffad-4bbd-947b-f7708cf74852"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Jab lead positive lage (user ne budget bataya, site visit maanga, book karna hai bola, ya serious inquiry ki) tab is tool ko call karo. Ye customer ka lead data Leads sheet mein save karta hai. Required fields: mobile (System Data se), name, query_type (Plot/2BHK Flat/3BHK Flat/Villa), location, budget, lead_score (Hot/Warm/Cold), chat_summary (2-3 lines)",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "16jpCYGG3BChz84YD-cb_f1xHPz_3pRQDmruRinNrg2M",
+          "mode": "list",
+          "cachedResultName": "Leads Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16jpCYGG3BChz84YD-cb_f1xHPz_3pRQDmruRinNrg2M/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16jpCYGG3BChz84YD-cb_f1xHPz_3pRQDmruRinNrg2M/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ new Date().toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'}) }}",
+            "mobile": "={{ $('Webhook').item.json.body.data.key.remoteJid.replace('@s.whatsapp.net', '') }}",
+            "name": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('name', 'Customer name or Unknown', 'string') }}",
+            "query_type": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query_type', 'Property type: Plot / 2BHK Flat / 3BHK Flat / Villa', 'string') }}",
+            "preferred_location": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('location', 'Preferred location of customer', 'string') }}",
+            "budget": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('budget', 'Customer budget range e.g. 40-50 Lakh', 'string') }}",
+            "lead_score": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('lead_score', 'Hot or Warm or Cold', 'string') }}",
+            "chat_summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('chat_summary', '2-3 line summary of customer requirement', 'string') }}",
+            "follow_up_done": "No"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mobile",
+              "displayName": "mobile",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "query_type",
+              "displayName": "query_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "preferred_location",
+              "displayName": "preferred_location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "budget",
+              "displayName": "budget",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "lead_score",
+              "displayName": "lead_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chat_summary",
+              "displayName": "chat_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "follow_up_done",
+              "displayName": "follow_up_done",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        1584,
+        480
+      ],
+      "name": "Save_Lead",
+      "id": "1bd131e3-0363-4cb9-85bd-e518b949481c",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6bZut4nZsD9yCd9l",
+          "name": "Lofi CG"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "Notify_Owner",
+        "description": "Save_Lead tool chalane ke TURANT BAAD is tool ko call karo. Ye shop owner ke WhatsApp par ek lead alert bhejta hai. Parameters: {\"mobile\": \"customer mobile\", \"name\": \"customer name\", \"query_type\": \"Plot/Flat\", \"location\": \"location\", \"budget\": \"budget\", \"lead_score\": \"Hot/Warm/Cold\", \"chat_summary\": \"summary\", \"inst\": \"prince\"}",
+        "jsCode": "let data;\ntry {\n  data = typeof query !== 'undefined' ? (typeof query === 'string' ? JSON.parse(query) : query) : $input.all()[0].json;\n} catch(e) {\n  data = $input.all()[0].json;\n}\nif (data && data.input && typeof data.input === 'string') {\n  try { const inner = JSON.parse(data.input); Object.assign(data, inner); } catch(ex) {}\n}\nconst evo = 'http://72.60.211.205:8080';\nconst key = 'CHANGE_THIS_TO_A_STRONG_PASSWORD';\nconst inst = data.inst || 'prince';\nconst ownerNumber = '6263210328';\nconst timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });\nconst emoji = data.lead_score === 'Hot' ? '🔥' : data.lead_score === 'Warm' ? '⚡' : '❄️';\nconst msg = emoji + ' NEW LEAD - Hamar Properties!\\n\\n📱 Mobile: +' + (data.mobile || 'Unknown') + '\\n👤 Name: ' + (data.name || 'Unknown') + '\\n🏠 Type: ' + (data.query_type || 'N/A') + '\\n📍 Location: ' + (data.location || 'N/A') + '\\n💰 Budget: ' + (data.budget || 'N/A') + '\\n📊 Score: ' + (data.lead_score || 'Cold') + '\\n\\n📝 Summary:\\n' + (data.chat_summary || 'N/A') + '\\n\\n⏰ Time: ' + timestamp + '\\n\\n✅ Please follow up with the customer!';\ntry {\n  await this.helpers.httpRequest({\n    method: 'POST',\n    url: evo + '/message/sendText/' + inst,\n    headers: { apikey: key, 'Content-Type': 'application/json' },\n    body: JSON.stringify({ number: ownerNumber, text: msg })\n  });\n  return 'Owner ko WhatsApp alert bhej diya gaya!';\n} catch(e) {\n  return 'Owner notify karne mein error: ' + e.message;\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1,
+      "position": [
+        1808,
+        496
+      ],
+      "name": "Notify_Owner",
+      "id": "f7bce670-0038-4c46-9638-f6e6da101648"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.userMessage }}\n\n[System Data - Phone: {{ $json.from.replace('@s.whatsapp.net','') }}, Instance: {{ $json.instanceName }}]",
+        "options": {
+          "systemMessage": "Tum 'Hamar Properties' ke ek expert Real Estate AI assistant ho.\n\nTUMHARA KAAM (STEP-BY-STEP FOLLOW KARO):\nStep 1: User ki requirement samjho (Plot, Flat, Villa).\nStep 2: Location aur Budget check karo. Agar dono mein se ek bhi cheez missing hai, toh aage mat badho. Pehle user se short aur natural tareeke se missing detail poocho. (Jaise: \"Mangla mein plot dekhne ke liye aapka budget kitna hai?\")\nStep 3: Jab Type + Location + Budget teeno pata chal jayein, tabhi 'Search_Property' tool chalao.\nStep 4: Property milne par Google Sheet ke inventory se 'image_url' (ya photo ka link) aur details lekar IMMEDIATELY 'Send_Property_Image' tool chalao.\nStep 5: Text response mein BAAKI KUCH MAT LIKHO, sirf ek short line likho: \"मैंने आपको प्रॉपर्टी की फोटो और डिटेल्स भेज दी हैं! आप इसे देख लें, कोई और सवाल हो तो बताएं।\"\n\n🚨 CONVERSATION STYLE (SABSE ZARURI):\n- WhatsApp par baatein ho rahi hain, isliye tumhare messages bilkul chote, natural aur human-like hone chahiye (maximum 1-2 lines).\n- KABHI BHI lambi list, bullet points, ya lambe paragraphs mat likho.\n- Ek baar mein sirf ek hi sawaal poocho.\n- Agar tumne 'Send_Property_Image' tool use kiya hai, toh text mein property ka area, price, ya description dubara mat likho. \n\n🚨 DYNAMIC LANGUAGE RULE:\nSystem Data mein 'InputType' check karo:\n- Agar \\\"InputType: audio\\\" hai: Toh poora jawab STRICTLY देवनागरी लिपि (Pure Hindi Text) में दो।\n- Agar \\\"InputType: text\\\" hai: Toh poora jawab Hinglish (Roman English letters) में do।\n\n🚨 SEARCH & MATCHING RULE (LOCATION VS BUDGET):\n- Location hamesha sabse badi priority hai! Agar user ne specific location (jaise 'Mangla') maangi hai, toh sirf usi location ki property dhundho.\n- Agar us location mein exact budget ki property NAHI hai, toh us location ki sabse kareebi budget wali property suggest karo.\n- BINA POOCHE DUSRI LOCATION KI PROPERTY MAT BHEJO.\n- Agar budget match nahi hota, toh us location ka kareebi option bata kar poocho: \"Mangla mein is budget mein option nahi hai, par [Naya Budget] mein ek accha option hai. Kya main details bheju?\"\n\n🚨 SITE VISIT / MEETING BOOKING RULE (BAHUT ZARURI):\n- Jab bhi user bole ki usko property dekhni hai, site visit karni hai, milna hai, ya location par jaana hai, toh pehle unse unka Naam, Date aur Time confirm karo (Jaise: \"Sir, aapka shubh naam kya hai? Aur aap kis din aur kis samay chalna chahenge? Main aapka appointment book kar deta hoon.\").\n- STRICTLY NOTE 1: Jab tak user apna NAAM, DATE aur TIME teeno cheezein na bata de, tab tak 'Create an event in Google Calendar' tool ko call mat karna. Agar koi ek detail missing ho toh pehle use natural tareeke se poocho.\n- STRICTLY NOTE 2: Jab bhi tum 'Create an event in Google Calendar' tool chalao, toh uske SAATH-SAATH tumhein 'Save_Lead' aur 'Notify_Owner' tools ko bhi HAR HAL MEIN chalana hai, taki lead data sheet mein bhi save ho sake aur owner ko alert mil sake. Yeh teeno tools ek sath chalne chahiye.\n- TODAY'S DATE CONTEXT: Aaj ki date 21 May 2026 hai aur tumhara timezone India (IST) hai. Agar user \"kal\", \"parso\", ya kisi din ka naam bole, toh 21 May 2026 ke hisab se sahi date aur year (2026) calculate karo.\n- ISO string (start_time aur end_time) parameters generate karte waqt hamesha India ka timezone offset (+05:30) use karo (e.g., 2026-05-22T15:00:00+05:30).\n- Tool chalne ke baad, user ko WhatsApp par ek short aur natural confirmation reply do (Jaise: \"Ji sir, maine aapka site visit [Date] ko [Time] baje ke liye schedule kar diya hai! 👍\").\n\n🚨 LEAD QUALIFICATION (BAHUT ZARURI):\nJab bhi user:\n- Specific budget bataye\n- Site visit maange (Meeting book karne ko bole)\n- 'Book karna hai', 'lena hai' bole\n- Serious sawal poochhe (loan, registry)\n→ TURANT YEH DO TOOLS EK KE BAAD EK CHALAO:\n  Step 1: 'Save_Lead' tool\n  Step 2: 'Notify_Owner' tool\n\nSAVE_LEAD & NOTIFY_OWNER RULES:\n- mobile: System Data ke Phone field se lo.\n- name: Agar bataya ho, nahi to 'Unknown'.\n- query_type, location, budget, lead_score, chat_summary bharo.\n- inst: 'qsai' (always).\n\nGENERAL RULES:\n- User se phone number mat maango.\n- Hamesha sirf \"Available\" status wali properties hi suggest karo. \"Hold\" wali property kabhi mat dikhao."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1056,
+        -112
+      ],
+      "name": "Real Estate AI Agent",
+      "id": "1f5ab30c-ee26-42ae-bbc4-a327d736744d"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $('Webhook').item.json.body.data.messageType }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "audioMessage",
+              "output": 1
+            },
+            {
+              "value2": "pttMessage",
+              "output": 1
+            }
+          ]
+        },
+        "fallbackOutput": 0
+      },
+      "name": "Check If Audio Input",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        -144
+      ],
+      "id": "40144ee4-9590-40f1-89c0-65b33fb4ac6b"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Webhook').item.json.body.instance }}",
+        "remoteJid": "={{ $('Webhook').item.json.body.data.key.remoteJid }}",
+        "messageText": "={{ $json.output }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        -288
+      ],
+      "name": "Send WhatsApp Text Reply",
+      "id": "892b341b-3ec1-4a1c-a294-af0e61267edc",
+      "credentials": {
+        "evolutionApi": {
+          "id": "f8T4drvRgXo7bMvi",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.sarvam.ai/text-to-speech",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api-subscription-key",
+              "value": "sk_oqp8mydz_XiSKzvmAAdIHV4gx8VP3SMzJ"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ inputs: [$json.output], target_language_code: 'hi-IN', speaker: 'shubh', pace: 1.05, speech_sample_rate: 8000, enable_preprocessing: true, model: 'bulbul:v3' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        -48
+      ],
+      "name": "Sarvam Text to Speech",
+      "id": "4b6bf1fd-3d29-4a26-9f66-0098de8dccb5"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base64Audio = $input.first().json.audios[0];\nreturn [{\n  json: { message: 'Audio ready' },\n  binary: {\n    data: await this.helpers.prepareBinaryData(\n      Buffer.from(base64Audio, 'base64'),\n      'reply_audio.wav',\n      'audio/wav'\n    )\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2192,
+        -48
+      ],
+      "name": "Convert TTS to Binary",
+      "id": "897e0bb2-6d3c-4bf2-abfd-4a46968ff028"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://72.60.211.205:8080/message/sendMedia/{{ $('Webhook').item.json.body.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "CHANGE_THIS_TO_A_STRONG_PASSWORD"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Webhook').item.json.body.data.key.remoteJid.replace('@s.whatsapp.net',''), mediatype: 'audio', mimetype: 'audio/mpeg', media: $('Sarvam Text to Speech').item.json.audios[0] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2400,
+        -48
+      ],
+      "name": "Send Audio Reply via Evo",
+      "id": "b3b5d40c-8444-4628-9d3b-de01922c8398"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Use this tool ONLY when the user explicitly agrees or asks for a site visit, meeting, or property inspection. You must ask for the preferred Date and Time before calling this tool",
+        "calendar": {
+          "__rl": true,
+          "value": "bf4814e38b2eed0140b125f91d7e9b438b24d734c911c74f32565461bb1ee8d6@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "Real Estate"
+        },
+        "start": "={{ \n  (() => {\n    let aiTime = $fromAI('start_time');\n    if (!aiTime) return new Date().toISOString();\n    // Agar AI +05:30 lagana bhool gaya ya Berlin ka time de raha hai, toh hum use force karenge\n    let baseTime = aiTime.split('+')[0].split('Z')[0]; \n    return baseTime.includes('T') ? `${baseTime}+05:30` : `${baseTime}T12:00:00+05:30`;\n  })()\n}}",
+        "end": "={{ \n  (() => {\n    let aiTime = $fromAI('end_time');\n    if (!aiTime) return new Date(Date.now() + 60 * 60 * 1000).toISOString();\n    let baseTime = aiTime.split('+')[0].split('Z')[0]; \n    return baseTime.includes('T') ? `${baseTime}+05:30` : `${baseTime}T13:00:00+05:30`;\n  })()\n}}",
+        "useDefaultReminders": "={{ true }}",
+        "additionalFields": {
+          "description": "={{ \n  (() => {\n    // Seedhe Webhook se remoteJid nikal kar '@s.whatsapp.net' ko saaf karenge\n    let rawJid = $('Webhook').item.json.body?.data?.key?.remoteJid || '';\n    let phone = rawJid.split('@')[0];\n    return phone ? `Customer Mobile: +${phone}` : 'Customer Mobile: Unknown';\n  })()\n}}",
+          "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', `The title of the event, formatted as: \"Site Visit: [Customer Name] - [Property Type (Plot/Flat/Villa)]\". If name is unknown, use \"Site Visit: Unknown Customer\".`, 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        2000,
+        448
+      ],
+      "id": "b547b885-ca9f-4df3-95ae-7fbebac42284",
+      "name": "Create an event in Google Calendar",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "x8pxavuacfdisFU0",
+          "name": "prince"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.srv901362.hstgr.cloud",
+            "user-agent": "axios/1.13.2",
+            "content-length": "1751",
+            "accept": "application/json, text/plain, */*",
+            "accept-encoding": "gzip, compress, deflate, br",
+            "content-type": "application/json",
+            "x-forwarded-for": "172.18.0.1",
+            "x-forwarded-host": "n8n.srv901362.hstgr.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "d088d34f285e",
+            "x-real-ip": "172.18.0.1"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "event": "messages.upsert",
+            "instance": "qsai",
+            "data": {
+              "key": {
+                "remoteJid": "916263210328@s.whatsapp.net",
+                "remoteJidAlt": "916263210328@s.whatsapp.net",
+                "fromMe": false,
+                "id": "3EB0BDDCECDBCEE8C5E807",
+                "participant": "",
+                "addressingMode": "lid"
+              },
+              "pushName": "₱Ɽł₦₵Ɇ",
+              "status": "DELIVERY_ACK",
+              "message": {
+                "messageContextInfo": {
+                  "threadId": [],
+                  "deviceListMetadata": {
+                    "senderKeyIndexes": [],
+                    "recipientKeyIndexes": [],
+                    "senderKeyHash": {
+                      "0": 212,
+                      "1": 190,
+                      "2": 246,
+                      "3": 24,
+                      "4": 23,
+                      "5": 169,
+                      "6": 144,
+                      "7": 87,
+                      "8": 114,
+                      "9": 25
+                    },
+                    "senderTimestamp": {
+                      "low": 1778440625,
+                      "high": 0,
+                      "unsigned": true
+                    },
+                    "senderAccountType": 0,
+                    "receiverAccountType": 0,
+                    "recipientKeyHash": {
+                      "0": 75,
+                      "1": 21,
+                      "2": 175,
+                      "3": 142,
+                      "4": 176,
+                      "5": 216,
+                      "6": 121,
+                      "7": 67,
+                      "8": 196,
+                      "9": 165
+                    },
+                    "recipientTimestamp": {
+                      "low": 1778133522,
+                      "high": 0,
+                      "unsigned": true
+                    }
+                  },
+                  "deviceListMetadataVersion": 2,
+                  "messageSecret": {
+                    "0": 186,
+                    "1": 89,
+                    "2": 1,
+                    "3": 67,
+                    "4": 198,
+                    "5": 237,
+                    "6": 222,
+                    "7": 68,
+                    "8": 40,
+                    "9": 66,
+                    "10": 165,
+                    "11": 248,
+                    "12": 254,
+                    "13": 153,
+                    "14": 222,
+                    "15": 11,
+                    "16": 99,
+                    "17": 227,
+                    "18": 231,
+                    "19": 204,
+                    "20": 142,
+                    "21": 219,
+                    "22": 216,
+                    "23": 70,
+                    "24": 25,
+                    "25": 122,
+                    "26": 13,
+                    "27": 126,
+                    "28": 218,
+                    "29": 19,
+                    "30": 115,
+                    "31": 119
+                  },
+                  "limitSharingV2": {
+                    "trigger": 0,
+                    "initiatedByMe": false
+                  }
+                },
+                "conversation": "bhejo"
+              },
+              "contextInfo": {
+                "mentionedJid": [],
+                "groupMentions": [],
+                "statusAttributions": [],
+                "ephemeralSettingTimestamp": {
+                  "low": 1779127444,
+                  "high": 0,
+                  "unsigned": false
+                },
+                "disappearingMode": {
+                  "initiator": 0,
+                  "trigger": 1,
+                  "initiatedByMe": false
+                }
+              },
+              "messageType": "conversation",
+              "messageTimestamp": 1779301465,
+              "instanceId": "5fcfb70d-9c13-4c42-94ac-3e1e0efa4006",
+              "source": "web"
+            },
+            "destination": "https://n8n.srv901362.hstgr.cloud/webhook/hamar-properties-bot",
+            "date_time": "2026-05-20T15:24:25.478Z",
+            "sender": "916260663482@s.whatsapp.net",
+            "server_url": "http://72.60.211.205:8080",
+            "apikey": "63B2F6BEEE51-4C19-86F6-1BFCF527DB7C"
+          },
+          "webhookUrl": "https://n8n.srv901362.hstgr.cloud/webhook/hamar-properties-bot",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Filter Personal Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Personal Messages": {
+      "main": [
+        [
+          {
+            "node": "Message Type Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message Type Switch": {
+      "main": [
+        [
+          {
+            "node": "Prepare Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Audio Base64 (Evo API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Text": {
+      "main": [
+        [
+          {
+            "node": "Real Estate AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Audio Base64 (Evo API)": {
+      "main": [
+        [
+          {
+            "node": "Base64 to Binary Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Base64 to Binary Audio": {
+      "main": [
+        [
+          {
+            "node": "Transcribe Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe Audio": {
+      "main": [
+        [
+          {
+            "node": "Prepare Audio Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Audio Message": {
+      "main": [
+        [
+          {
+            "node": "Real Estate AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4o-mini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Real Estate AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Real Estate AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search_Property": {
+      "ai_tool": [
+        [
+          {
+            "node": "Real Estate AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send_Property_Image": {
+      "ai_tool": [
+        [
+          {
+            "node": "Real Estate AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save_Lead": {
+      "ai_tool": [
+        [
+          {
+            "node": "Real Estate AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify_Owner": {
+      "ai_tool": [
+        [
+          {
+            "node": "Real Estate AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Real Estate AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Check If Audio Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Audio Input": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Text Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sarvam Text to Speech",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sarvam Text to Speech": {
+      "main": [
+        [
+          {
+            "node": "Convert TTS to Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert TTS to Binary": {
+      "main": [
+        [
+          {
+            "node": "Send Audio Reply via Evo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an event in Google Calendar": {
+      "ai_tool": [
+        [
+          {
+            "node": "Real Estate AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "78440eb0-68a7-495a-bbe9-13f8bd8474ba",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3c3d72d09981f342b0ba653f2ee11486e51c183dc6ae7fde0b808a97b2060280"
+  },
+  "id": "x7Y2zqwdFSV02kPYpRq0g",
+  "tags": []
+}

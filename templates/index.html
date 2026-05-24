@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Hamar AI Outreach CRM{% endblock %}
+{% block page_title %}Outreach Overview{% endblock %}
+
+{% block content %}
+<!-- Metric Cards -->
+<div class="row g-4 mb-5">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="glass-card stat-card">
+            <div class="stat-icon primary">
+                <i class="fa-solid fa-users"></i>
+            </div>
+            <div class="stat-details">
+                <span class="stat-value">{{ metrics.total_clients }}</span>
+                <span class="stat-label">Total Clients</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="glass-card stat-card">
+            <div class="stat-icon success">
+                <i class="fa-solid fa-bullhorn"></i>
+            </div>
+            <div class="stat-details">
+                <span class="stat-value">{{ metrics.total_campaigns }}</span>
+                <span class="stat-label">Total Campaigns</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="glass-card stat-card">
+            <div class="stat-icon warning">
+                <i class="fa-solid fa-paper-plane"></i>
+            </div>
+            <div class="stat-details">
+                <span class="stat-value">{{ metrics.total_sent }}</span>
+                <span class="stat-label">Messages Sent</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="glass-card stat-card">
+            <div class="stat-icon danger">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <div class="stat-details">
+                <span class="stat-value">{{ metrics.success_rate }}%</span>
+                <span class="stat-label">Success Rate</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Campaigns Table -->
+<div class="glass-card mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h5 class="fw-bold mb-1">Recent Outreach Campaigns</h5>
+            <p class="text-secondary small mb-0">Track and manage your automated WhatsApp delivery sequences.</p>
+        </div>
+        <a href="{{ url_for('campaign_new') }}" class="btn btn-primary btn-sm">
+            <i class="fa-solid fa-plus me-2"></i>New Campaign
+        </a>
+    </div>
+
+    {% if campaigns %}
+    <div class="table-responsive">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Campaign Name</th>
+                    <th>Created At</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for campaign in campaigns %}
+                <tr>
+                    <td class="fw-bold">#{{ campaign.id }}</td>
+                    <td>
+                        <span class="fw-semibold">{{ campaign.name }}</span>
+                        <div class="text-secondary small text-truncate" style="max-width: 300px;">
+                            {{ campaign.message_content }}
+                        </div>
+                    </td>
+                    <td>{{ campaign.created_at }}</td>
+                    <td>
+                        <span class="status-badge {{ campaign.status.lower() }}">
+                            <span class="status-indicator {{ 'online' if campaign.status == 'Running' else 'idle' }}"></span>
+                            {{ campaign.status }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="progress-bar-custom flex-grow-1" style="width: 100px;">
+                                <div class="progress-bar-fill" style="width: {{ campaign.progress }}%;"></div>
+                            </div>
+                            <span class="small fw-semibold">{{ campaign.progress }}%</span>
+                        </div>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('campaign_detail', campaign_id=campaign.id) }}" class="btn btn-secondary btn-sm px-3">
+                            <i class="fa-solid fa-eye me-1"></i>View Logs
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fa-solid fa-bullhorn text-secondary fs-1 mb-3 opacity-50"></i>
+        <h6 class="fw-bold">No campaigns created yet</h6>
+        <p class="text-secondary small mb-4">Start your first WhatsApp outreach campaign right away.</p>
+        <a href="{{ url_for('campaign_new') }}" class="btn btn-primary">
+            <i class="fa-solid fa-plus me-2"></i>Create Campaign
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

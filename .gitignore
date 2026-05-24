@@ -1,0 +1,12 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Databases
+crm.db
+
+# Settings / Local secrets
+.env
+# settings.json

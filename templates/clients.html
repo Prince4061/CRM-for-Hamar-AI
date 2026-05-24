@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Client Database - Hamar AI Outreach CRM{% endblock %}
+{% block page_title %}Client Contact Database{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- CSV Upload Panel -->
+    <div class="col-12 col-lg-4">
+        <!-- CSV Import Card -->
+        <div class="glass-card mb-4">
+            <h5 class="fw-bold mb-3"><i class="fa-solid fa-file-import text-gradient me-2"></i>Import Clients</h5>
+            <p class="text-secondary small mb-4">Upload a CSV file containing your contacts. The system will look for column headers like <strong>Name</strong> and <strong>WhatsApp / Phone / Number</strong>.</p>
+            
+            <form action="{{ url_for('clients_upload') }}" method="POST" enctype="multipart/form-data">
+                <div class="mb-4">
+                    <label for="csvFile" class="form-label">Choose CSV File</label>
+                    <div class="dropzone" onclick="document.getElementById('csvFile').click()">
+                        <i class="fa-solid fa-cloud-arrow-up text-gradient"></i>
+                        <p class="fw-semibold mb-1">Click to browse file</p>
+                        <p class="text-secondary small">Supports .csv files</p>
+                        <input type="file" id="csvFile" name="file" accept=".csv" class="d-none" onchange="updateFileLabel(this)">
+                    </div>
+                    <div id="fileSelectedLabel" class="text-center mt-2 small text-secondary fw-semibold"></div>
+                </div>
+
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-circle-arrow-up me-2"></i>Upload and Parse
+                    </button>
+                </div>
+            </form>
+
+            <div class="mt-4 pt-4 border-top border-color">
+                <h6 class="fw-bold mb-2">CSV Sample Format:</h6>
+                <pre class="bg-primary p-3 rounded-3 small text-secondary">Name,WhatsApp
+Ramesh Kumar,9876543210
+Priya Sharma,8765432109</pre>
+            </div>
+        </div>
+
+        <!-- Single Client Add Card -->
+        <div class="glass-card">
+            <h5 class="fw-bold mb-3"><i class="fa-solid fa-user-plus text-gradient me-2"></i>Add Single Contact</h5>
+            <p class="text-secondary small mb-4">Add a test contact directly to the database for quick outreach validation.</p>
+            
+            <form action="{{ url_for('client_add') }}" method="POST">
+                <div class="mb-3">
+                    <label for="client_name" class="form-label">Client Name</label>
+                    <input type="text" class="form-control" id="client_name" name="name" placeholder="e.g. Rahul Sharma" required>
+                </div>
+                <div class="mb-3">
+                    <label for="client_phone" class="form-label">WhatsApp Number / Phone</label>
+                    <input type="text" class="form-control" id="client_phone" name="phone" placeholder="e.g. 916263210328" required>
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-plus me-2"></i>Add Contact
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Client Database List -->
+    <div class="col-12 col-lg-8">
+        <div class="glass-card">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                <div>
+                    <h5 class="fw-bold mb-1">Contacts list ({{ clients|length }})</h5>
+                    <p class="text-secondary small mb-0">List of all active client numbers imported in the database.</p>
+                </div>
+                {% if clients %}
+                <form id="clear-clients-form" action="{{ url_for('clients_clear') }}" method="POST" class="d-inline">
+                    <button type="button" onclick="if(confirm('Are you sure you want to delete ALL clients? This will clear logs too.')) document.getElementById('clear-clients-form').submit();" class="btn btn-outline-danger btn-sm">
+                        <i class="fa-solid fa-trash-can me-2"></i>Clear All Contacts
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+
+            {% if clients %}
+            <div class="mb-3">
+                <div class="input-group">
+                    <span class="input-group-text bg-primary border-color text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    <input type="text" id="clientSearch" class="form-control" placeholder="Search contacts by name or phone...">
+                </div>
+            </div>
+
+            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                <table class="custom-table w-100" id="clientsTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Client Name</th>
+                            <th>WhatsApp Number</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for client in clients %}
+                        <tr>
+                            <td class="small text-secondary fw-semibold">#{{ loop.index }}</td>
+                            <td class="fw-semibold">{{ client.name }}</td>
+                            <td>
+                                <a href="https://wa.me/{{ client.whatsapp_number }}" target="_blank" class="text-decoration-none">
+                                    <i class="fa-brands fa-whatsapp text-success me-2"></i>{{ client.whatsapp_number }}
+                                </a>
+                            </td>
+                            <td>
+                                <form id="delete-client-{{ client.id }}" action="{{ url_for('client_delete', client_id=client.id) }}" method="POST" class="d-inline">
+                                    <button type="button" onclick="if(confirm('Delete this client?')) document.getElementById('delete-client-{{ client.id }}').submit();" class="btn btn-link text-danger p-0" title="Delete client">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fa-solid fa-users text-secondary fs-1 mb-3 opacity-50"></i>
+                <h6 class="fw-bold">No contacts imported yet</h6>
+                <p class="text-secondary small">Upload a CSV file on the left to populate the database.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateFileLabel(input) {
+    const label = document.getElementById('fileSelectedLabel');
+    if (input.files && input.files.length > 0) {
+        label.innerHTML = `<i class="fa-solid fa-file-csv me-1 text-success"></i> Selected: <strong>${input.files[0].name}</strong> (${(input.files[0].size/1024).toFixed(1)} KB)`;
+    } else {
+        label.innerHTML = '';
+    }
+}
+
+// Simple Live Search
+document.getElementById('clientSearch')?.addEventListener('keyup', function() {
+    const query = this.value.toLowerCase();
+    const rows = document.querySelectorAll('#clientsTable tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        if (text.includes(query)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,5 @@
+{
+    "api_url": "http://72.60.211.205:8080",
+    "api_key": "CHANGE_THIS_TO_A_STRONG_PASSWORD",
+    "instance_name": "qsai"
+}

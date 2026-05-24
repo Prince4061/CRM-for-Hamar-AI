@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+
+{% block title %}Create Campaign - Hamar AI Outreach CRM{% endblock %}
+{% block page_title %}New Outreach Campaign{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Campaign Builder Form -->
+    <div class="col-12 col-xl-7">
+        <div class="glass-card">
+            <h5 class="fw-bold mb-3"><i class="fa-solid fa-square-plus text-gradient me-2"></i>Configure Campaign</h5>
+            <p class="text-secondary small mb-4">Set up your message text, attachment files, and queue throttling logic.</p>
+            
+            <form action="{{ url_for('campaign_new') }}" method="POST" enctype="multipart/form-data">
+                <div class="mb-4">
+                    <label for="campaignName" class="form-label">Campaign Name</label>
+                    <input type="text" id="campaignName" name="name" class="form-control" placeholder="e.g., Eid Mubarak Mubarak Promo 2026" required>
+                </div>
+                
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label for="messageContent" class="form-label mb-0">Message Template</label>
+                        <span class="text-secondary small">Use <code class="accent-text">{name}</code> to personalize</span>
+                    </div>
+                    <textarea id="messageContent" name="message_content" class="form-control" rows="6" placeholder="Hi {name}, checkout our latest mobile models at Ali Mobiles! Reply YES to know more." required oninput="updatePreview()"></textarea>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label">Media Attachment (Optional)</label>
+                    <div class="dropzone" onclick="document.getElementById('mediaFile').click()">
+                        <i class="fa-solid fa-paperclip text-gradient"></i>
+                        <p class="fw-semibold mb-1" id="mediaSelectText">Attach Image, PDF, Video, or Audio</p>
+                        <p class="text-secondary small">Supports images/videos/docs up to 10MB</p>
+                        <input type="file" id="mediaFile" name="media" class="d-none" onchange="handleMediaSelect(this)">
+                    </div>
+                </div>
+
+                <!-- Throttling & Delay Settings -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-sm-6">
+                        <label for="delayInput" class="form-label">Delay Between Messages (Seconds)</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-primary border-color text-secondary"><i class="fa-solid fa-clock"></i></span>
+                            <input type="number" id="delayInput" name="delay" class="form-control" value="5" min="2" max="60" required>
+                        </div>
+                        <div class="form-text text-secondary small">Recommended: 5-10s to prevent spam bans.</div>
+                    </div>
+                    
+                    <div class="col-12 col-sm-6">
+                        <label for="batchSizeInput" class="form-label">Throttling Batch Limit (Evolution API)</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-primary border-color text-secondary"><i class="fa-solid fa-sliders"></i></span>
+                            <input type="number" id="batchSizeInput" name="batch_limit" class="form-control" value="20" min="1" max="100" required>
+                        </div>
+                        <div class="form-text text-secondary small">Pauses campaign after sending this many.</div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-3">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-rocket me-2"></i>Launch Campaign
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Phone Simulator Preview (Interactive & Live!) -->
+    <div class="col-12 col-xl-5">
+        <div class="glass-card d-flex flex-column align-items-center h-100">
+            <h5 class="fw-bold align-self-start mb-4"><i class="fa-solid fa-mobile-screen-button text-gradient me-2"></i>Live Preview</h5>
+            
+            <div class="phone-simulator">
+                <div class="phone-screen">
+                    <div class="phone-header">
+                        <div class="phone-bar">
+                            <span class="phone-time">19:12</span>
+                            <div class="phone-icons">
+                                <i class="fa-solid fa-signal"></i>
+                                <i class="fa-solid fa-wifi"></i>
+                                <i class="fa-solid fa-battery-three-quarters"></i>
+                            </div>
+                        </div>
+                        <div class="phone-chat-bar">
+                            <i class="fa-solid fa-arrow-left"></i>
+                            <div class="phone-chat-avatar"></div>
+                            <div class="phone-chat-name">
+                                <span class="fw-bold text-white small">Ramesh Kumar</span>
+                                <span class="phone-chat-status">online</span>
+                            </div>
+                            <div class="phone-chat-icons ms-auto">
+                                <i class="fa-solid fa-video"></i>
+                                <i class="fa-solid fa-phone"></i>
+                                <i class="fa-solid fa-ellipsis-vertical"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="phone-chat-body" id="previewBody">
+                        <div class="whatsapp-bubble recipient">
+                            <div class="whatsapp-media" id="previewMediaContainer" style="display: none;">
+                                <img id="previewMediaImg" src="" alt="Media Preview">
+                                <div id="previewMediaDoc" class="p-2 bg-dark rounded text-white d-flex align-items-center gap-2" style="display: none;">
+                                    <i class="fa-solid fa-file-pdf text-danger fs-3"></i>
+                                    <div class="small">
+                                        <span class="d-block text-truncate fw-semibold" id="previewDocName" style="max-width: 150px;">document.pdf</span>
+                                        <span class="text-secondary small">1.2 MB</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="whatsapp-text" id="previewText">
+                                Hi Ramesh Kumar, checkout our latest mobile models at Ali Mobiles! Reply YES to know more.
+                            </div>
+                            <div class="whatsapp-time">
+                                19:12 <i class="fa-solid fa-check-double text-info ms-1"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="phone-input-bar">
+                        <i class="fa-regular fa-face-smile"></i>
+                        <input type="text" placeholder="Type a message" disabled>
+                        <i class="fa-solid fa-paperclip"></i>
+                        <i class="fa-solid fa-camera"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* CSS Styles for Phone Simulator */
+.phone-simulator {
+    width: 320px;
+    height: 600px;
+    background-color: #000;
+    border-radius: 40px;
+    padding: 10px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    border: 4px solid var(--border-color);
+}
+.phone-screen {
+    width: 100%;
+    height: 100%;
+    background-color: #0b141a; /* WhatsApp dark mode chat bg */
+    border-radius: 32px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+.phone-header {
+    background-color: #1f2c34;
+    padding: 8px 16px 12px 16px;
+}
+.phone-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #fff;
+    margin-bottom: 8px;
+}
+.phone-icons {
+    display: flex;
+    gap: 4px;
+}
+.phone-chat-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #fff;
+}
+.phone-chat-bar i {
+    font-size: 14px;
+    cursor: pointer;
+}
+.phone-chat-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: #6b7280;
+}
+.phone-chat-name {
+    display: flex;
+    flex-direction: column;
+}
+.phone-chat-status {
+    font-size: 9px;
+    color: #34d399;
+}
+.phone-chat-icons {
+    display: flex;
+    gap: 14px;
+    color: #fff;
+}
+.phone-chat-body {
+    flex-grow: 1;
+    padding: 16px;
+    background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 0);
+    background-size: 16px 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+.whatsapp-bubble {
+    max-width: 85%;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    line-height: 1.4;
+    position: relative;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+}
+.whatsapp-bubble.recipient {
+    background-color: #202c33;
+    color: #e9edef;
+    align-self: flex-start;
+    border-top-left-radius: 0;
+}
+.whatsapp-text {
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+.whatsapp-media {
+    margin-bottom: 8px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.whatsapp-media img {
+    width: 100%;
+    max-height: 120px;
+    object-fit: cover;
+}
+.whatsapp-time {
+    font-size: 9px;
+    color: #8696a0;
+    text-align: right;
+    margin-top: 4px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+.phone-input-bar {
+    height: 50px;
+    background-color: #1f2c34;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    color: #8696a0;
+}
+.phone-input-bar input {
+    flex-grow: 1;
+    background: none;
+    border: none;
+    font-size: 12px;
+    color: #fff;
+    outline: none;
+}
+</style>
+
+<script>
+function updatePreview() {
+    const textInput = document.getElementById('messageContent').value;
+    const previewText = document.getElementById('previewText');
+    
+    // Fallback if empty
+    if (!textInput.trim()) {
+        previewText.textContent = "Your customized message will appear here.";
+        return;
+    }
+    
+    // Replace dynamic placeholders with sample values
+    let processed = textInput.replace(/{name}/g, 'Ramesh Kumar');
+    previewText.textContent = processed;
+}
+
+function handleMediaSelect(input) {
+    const textSpan = document.getElementById('mediaSelectText');
+    const container = document.getElementById('previewMediaContainer');
+    const imgPreview = document.getElementById('previewMediaImg');
+    const docPreview = document.getElementById('previewMediaDoc');
+    const docName = document.getElementById('previewDocName');
+    
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        textSpan.innerHTML = `<i class="fa-solid fa-paperclip text-success me-1"></i> Attached: <strong>${file.name}</strong>`;
+        
+        container.style.display = 'block';
+        
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imgPreview.src = e.target.result;
+                imgPreview.style.display = 'block';
+                docPreview.style.display = 'none';
+            }
+            reader.readAsDataURL(file);
+        } else {
+            // Document preview
+            imgPreview.style.display = 'none';
+            docPreview.style.display = 'flex';
+            docName.textContent = file.name;
+        }
+    } else {
+        textSpan.textContent = 'Attach Image, PDF, Video, or Audio';
+        container.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

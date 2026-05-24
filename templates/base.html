@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Hamar AI Outreach CRM{% endblock %}</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Premium CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="app-sidebar">
+            <div class="sidebar-header">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-paper-plane text-gradient"></i>
+                    <span class="brand-name">Hamar <span class="accent-text">AI</span></span>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('dashboard') }}" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('clients_page') }}" class="nav-item {% if active_page == 'clients' %}active{% endif %}">
+                    <i class="fa-solid fa-users"></i>
+                    <span>Client Database</span>
+                </a>
+                <a href="{{ url_for('campaign_new') }}" class="nav-item {% if active_page == 'new_campaign' %}active{% endif %}">
+                    <i class="fa-solid fa-bullhorn"></i>
+                    <span>Create Campaign</span>
+                </a>
+                <a href="{{ url_for('campaigns_list') }}" class="nav-item {% if active_page == 'campaigns' %}active{% endif %}">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Campaign Logs</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="avatar">AI</div>
+                    <div class="user-info">
+                        <span class="user-name">Outreach CRM</span>
+                        <span class="user-status"><span class="status-indicator online"></span>Online</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="app-main">
+            <header class="app-header">
+                <div class="header-search">
+                    <h4 class="page-title">{% block page_title %}Dashboard{% endblock %}</h4>
+                </div>
+                <div class="header-actions">
+                    <div class="theme-toggle" id="themeToggleBtn" title="Toggle Theme">
+                        <i class="fa-solid fa-moon"></i>
+                    </div>
+                    <div class="notifications">
+                        <i class="fa-solid fa-bell"></i>
+                        <span class="badge"></span>
+                    </div>
+                </div>
+            </header>
+            
+            <div class="content-wrapper">
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show custom-alert" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Theme Toggle Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeBtn = document.getElementById('themeToggleBtn');
+            const icon = themeBtn.querySelector('i');
+            
+            // Check storage or system preference
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+
+            themeBtn.addEventListener('click', () => {
+                let currentTheme = document.documentElement.getAttribute('data-theme');
+                let newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                updateThemeIcon(newTheme);
+            });
+
+            function updateThemeIcon(theme) {
+                if (theme === 'dark') {
+                    icon.className = 'fa-solid fa-sun';
+                } else {
+                    icon.className = 'fa-solid fa-moon';
+                }
+            }
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
