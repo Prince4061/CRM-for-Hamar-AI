@@ -29,6 +29,12 @@
                     <div class="form-text text-secondary small">The active WhatsApp instance name registered inside Evolution API.</div>
                 </div>
 
+                <div class="mb-4">
+                    <label for="webhookUrl" class="form-label">Public Webhook URL (for WhatsApp Replies)</label>
+                    <input type="url" id="webhookUrl" name="webhook_url" class="form-control" placeholder="https://xxxx-xxxx.ngrok-free.app" value="{{ settings.webhook_url or '' }}">
+                    <div class="form-text text-secondary small">Provide your public server URL (e.g., via <strong>ngrok</strong>, <strong>Localtunnel</strong> or <strong>VPS</strong>). The CRM will automatically register it to listen for replies at <code>/webhook/evolution</code>.</div>
+                </div>
+
                 <div class="mb-4 pt-3 border-top border-color">
                     <div class="d-flex align-items-center gap-3">
                         <div class="status-indicator {{ 'online' if settings.api_url and settings.api_key else 'idle' }}"></div>

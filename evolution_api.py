@@ -121,3 +121,42 @@ class EvolutionAPI:
             except Exception as e:
                 logger.error(f"Connection to Evolution API failed for {cleaned_number}: {e}")
                 return False, f"Connection to Evolution API failed: {str(e)}"
+
+    def register_webhook(self, webhook_base_url):
+        """
+        Registers the CRM webhook URL with the Evolution API instance.
+        """
+        if not self.is_configured():
+            return False, "API not configured. Please fill in URL, Token, and Instance Name."
+            
+        # Standard CRM Webhook receiver route
+        webhook_endpoint = f"{webhook_base_url.rstrip('/')}/webhook/evolution"
+        url = f"{self.base_url.rstrip('/')}/webhook/set/{self.instance_name}"
+        
+        headers = {
+            "apikey": self.api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "enabled": True,
+            "url": webhook_endpoint,
+            "webhookByEvents": False,
+            "events": [
+                "MESSAGES_UPSERT"
+            ]
+        }
+        
+        try:
+            logger.info(f"Setting Evolution API webhook URL: {webhook_endpoint} (API endpoint: {url})")
+            response = requests.post(url, json=payload, headers=headers, timeout=12)
+            if response.status_code in [200, 201]:
+                logger.info("Webhook successfully registered with Evolution API.")
+                return True, None
+            else:
+                logger.error(f"Failed to register webhook (Status {response.status_code}): {response.text}")
+                return False, f"API returned status {response.status_code}: {response.text}"
+        except Exception as e:
+            logger.error(f"Error registering webhook: {e}")
+            return False, f"Network request failed: {str(e)}"
+

@@ -108,11 +108,16 @@ Priya Sharma,8765432109</pre>
                                 </a>
                             </td>
                             <td>
-                                <form id="delete-client-{{ client.id }}" action="{{ url_for('client_delete', client_id=client.id) }}" method="POST" class="d-inline">
-                                    <button type="button" onclick="if(confirm('Delete this client?')) document.getElementById('delete-client-{{ client.id }}').submit();" class="btn btn-link text-danger p-0" title="Delete client">
-                                        <i class="fa-solid fa-trash"></i>
+                                <div class="d-flex align-items-center gap-3">
+                                    <button type="button" class="btn btn-link text-warning p-0" onclick="triggerSimulationModal({{ client.id }}, '{{ client.name }}')" title="Simulate WhatsApp Reply">
+                                        <i class="fa-solid fa-reply"></i>
                                     </button>
-                                </form>
+                                    <form id="delete-client-{{ client.id }}" action="{{ url_for('client_delete', client_id=client.id) }}" method="POST" class="d-inline">
+                                        <button type="button" onclick="if(confirm('Delete this client?')) document.getElementById('delete-client-{{ client.id }}').submit();" class="btn btn-link text-danger p-0" title="Delete client">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -129,10 +134,47 @@ Priya Sharma,8765432109</pre>
         </div>
     </div>
 </div>
+
+<!-- Simulation Modal -->
+<div class="modal fade" id="simulationModal" tabindex="-1" aria-labelledby="simulationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-card p-0" style="border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(18, 18, 22, 0.95); backdrop-filter: blur(20px);">
+            <div class="modal-header border-bottom border-color p-3">
+                <h5 class="modal-title fw-bold text-white" id="simulationModalLabel">
+                    <i class="fa-solid fa-flask text-warning me-2 animate-bounce"></i>Simulate WhatsApp Reply
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="simulationForm" method="POST">
+                <div class="modal-body p-4 text-white">
+                    <p class="text-secondary small mb-3">Trigger a mock WhatsApp reply from <strong id="simClientName">Client</strong>. This will simulate a real incoming webhook and instantly classify them as a Hot Lead.</p>
+                    
+                    <div class="mb-3">
+                        <label for="simMessage" class="form-label text-secondary small fw-semibold">Custom Message (Optional)</label>
+                        <textarea class="form-control bg-primary text-white border-color" id="simMessage" name="message" rows="3" placeholder="Leave empty for a random real estate inquiry reply..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-color p-3">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-warning btn-sm text-dark fw-bold">
+                        <i class="fa-solid fa-bolt me-1"></i>Inject Reply
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+function triggerSimulationModal(clientId, clientName) {
+    document.getElementById('simClientName').innerText = clientName;
+    document.getElementById('simulationForm').action = '/clients/' + clientId + '/simulate-reply';
+    const myModal = new bootstrap.Modal(document.getElementById('simulationModal'));
+    myModal.show();
+}
+
 function updateFileLabel(input) {
     const label = document.getElementById('fileSelectedLabel');
     if (input.files && input.files.length > 0) {

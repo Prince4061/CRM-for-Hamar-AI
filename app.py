@@ -33,7 +33,7 @@ def load_settings():
                 return json.load(f)
         except Exception:
             pass
-    return {"api_url": "", "api_key": "", "instance_name": "hamar_ai"}
+    return {"api_url": "", "api_key": "", "instance_name": "hamar_ai", "webhook_url": ""}
 
 def save_settings(data):
     try:
@@ -634,15 +634,26 @@ def settings_page():
         api_url = request.form.get('api_url', '').strip()
         api_key = request.form.get('api_key', '').strip()
         instance_name = request.form.get('instance_name', 'hamar_ai').strip()
+        webhook_url = request.form.get('webhook_url', '').strip()
         
         settings = {
             "api_url": api_url,
             "api_key": api_key,
-            "instance_name": instance_name
+            "instance_name": instance_name,
+            "webhook_url": webhook_url
         }
         
         if save_settings(settings):
             flash('Integration settings saved successfully.', 'success')
+            
+            # If webhook URL is provided, register it with the Evolution API
+            if api_url and api_key and webhook_url:
+                api = EvolutionAPI(base_url=api_url, api_key=api_key, instance_name=instance_name)
+                success, error_msg = api.register_webhook(webhook_url)
+                if success:
+                    flash('Webhook registered successfully with Evolution API!', 'success')
+                else:
+                    flash(f'Settings saved, but webhook auto-registration failed: {error_msg}', 'warning')
         else:
             flash('Failed to save settings. Check permissions.', 'error')
             
@@ -650,6 +661,45 @@ def settings_page():
         
     settings = load_settings()
     return render_template('settings.html', settings=settings, active_page='settings')
+
+
+@app.route('/clients/<int:client_id>/simulate-reply', methods=['POST'])
+def client_simulate_reply(client_id):
+    custom_msg = request.form.get('message', '').strip()
+    if not custom_msg:
+        import random
+        custom_msg = random.choice([
+            "Hello! I am interested in this property. Can you share the pricing sheet?",
+            "Hi, is this house still available? I want to visit it this weekend.",
+            "Can I get a call back regarding this listing?",
+            "What is the total carpet area of the 3BHK flat?",
+            "Is the price negotiable? What is the down payment?"
+        ])
+        
+    conn = get_db_connection()
+    client = conn.execute("SELECT * FROM clients WHERE id = ?", (client_id,)).fetchone()
+    if not client:
+        conn.close()
+        flash("Client not found.", "error")
+        return redirect(url_for('clients_page'))
+        
+    # Check if lead already exists
+    lead = conn.execute("SELECT id FROM hot_leads WHERE client_id = ?", (client_id,)).fetchone()
+    if lead:
+        conn.execute(
+            "UPDATE hot_leads SET last_message = ?, replied_at = CURRENT_TIMESTAMP, status = 'New' WHERE client_id = ?",
+            (custom_msg, client_id)
+        )
+    else:
+        conn.execute(
+            "INSERT INTO hot_leads (client_id, last_message, replied_at, status) VALUES (?, ?, CURRENT_TIMESTAMP, 'New')",
+            (client_id, custom_msg)
+        )
+    conn.commit()
+    conn.close()
+    flash(f"Simulated WhatsApp message from '{client['name']}' added to Hot Leads!", "success")
+    return redirect(url_for('hot_leads'))
+
 
 
 # --- Webhook and Hot Leads Routes ---
@@ -723,8 +773,13 @@ def hot_leads():
         ORDER BY hl.replied_at DESC
     ''').fetchall()
     leads = [dict(row) for row in leads_rows]
+    
+    # Fetch all clients to support direct simulation select options
+    clients_rows = conn.execute("SELECT id, name FROM clients ORDER BY name ASC").fetchall()
+    clients = [dict(row) for row in clients_rows]
+    
     conn.close()
-    return render_template('hot_leads.html', active_page='hot_leads', leads=leads)
+    return render_template('hot_leads.html', active_page='hot_leads', leads=leads, clients=clients)
 
 
 @app.route('/hot-leads/<int:lead_id>/status', methods=['POST'])
