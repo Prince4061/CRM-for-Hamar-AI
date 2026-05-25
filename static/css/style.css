@@ -585,3 +585,75 @@ body {
         margin-left: 70px;
     }
 }
+
+/* Premium Date Picker & Form Elements Upgrades */
+.animate-pulse {
+    animation: premiumPulse 2s infinite alternate;
+}
+
+@keyframes premiumPulse {
+    0% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.4));
+    }
+    100% {
+        transform: scale(1.08);
+        filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.85));
+    }
+}
+
+/* Elegant calendar icon overlay */
+.date-input-container {
+    position: relative;
+    width: 100%;
+}
+
+.date-input-container input[type="date"] {
+    padding-right: 36px !important;
+    position: relative;
+    cursor: pointer;
+}
+
+.date-input-container input[type="date"]::-webkit-calendar-picker-indicator {
+    background: transparent !important;
+    color: transparent !important;
+    cursor: pointer;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    opacity: 0;
+}
+
+.date-input-container::after {
+    content: "\f073";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #818cf8;
+    pointer-events: none;
+    font-size: 0.8rem;
+    z-index: 1;
+    transition: all 0.25s ease;
+}
+
+.date-input-container:focus-within::after {
+    color: #c084fc;
+    filter: drop-shadow(0 0 5px rgba(192, 132, 252, 0.8));
+}
+
+/* Smooth premium widget highlight hover */
+.glass-card div[id*="DetailsRow"] {
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.glass-card div[id*="DetailsRow"]:hover {
+    border-color: rgba(99, 102, 241, 0.35) !important;
+    box-shadow: 0 8px 25px rgba(99, 102, 241, 0.08) !important;
+}

@@ -6,6 +6,10 @@ import io
 import threading
 import time
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 from werkzeug.utils import secure_filename
 from database import init_db, get_db_connection, DbIntegrityError
 from evolution_api import EvolutionAPI
@@ -54,7 +58,7 @@ def load_settings():
                 return json.load(f)
         except Exception:
             pass
-    return {"api_url": "", "api_key": "", "instance_name": "hamar_ai", "webhook_url": ""}
+    return {"api_url": "", "api_key": "", "instance_name": "hamar_ai", "webhook_url": "", "openai_api_key": ""}
 
 def save_settings(data):
     try:
@@ -384,8 +388,37 @@ def dashboard():
     ''').fetchall()
     recent_leads = [dict(row) for row in recent_leads_rows]
     
+    # Check today's celebrations (Premium client birthdays / custom special events)
+    import datetime
+    today_date = datetime.date.today()
+    current_month_day = today_date.strftime('%m-%d')
+    
+    premium_clients = conn.execute("SELECT * FROM clients WHERE is_premium = 1").fetchall()
+    celebrations = []
+    
+    for client in premium_clients:
+        client_dict = dict(client)
+        is_event_today = False
+        event_type = ""
+        
+        if client_dict.get('dob') and len(client_dict['dob']) >= 5:
+            dob_extracted = client_dict['dob'][5:10] if len(client_dict['dob']) == 10 else client_dict['dob']
+            if dob_extracted == current_month_day:
+                is_event_today = True
+                event_type = "Birthday 🎉"
+                
+        if client_dict.get('event_date') and len(client_dict['event_date']) >= 5:
+            event_extracted = client_dict['event_date'][5:10] if len(client_dict['event_date']) == 10 else client_dict['event_date']
+            if event_extracted == current_month_day:
+                is_event_today = True
+                event_type = client_dict.get('event_name') or "Special Event 🌟"
+                
+        if is_event_today:
+            client_dict['event_type'] = event_type
+            celebrations.append(client_dict)
+            
     conn.close()
-    return render_template('index.html', active_page='dashboard', metrics=metrics, campaigns=campaigns, recent_leads=recent_leads)
+    return render_template('index.html', active_page='dashboard', metrics=metrics, campaigns=campaigns, recent_leads=recent_leads, celebrations=celebrations)
 
 
 @app.route('/clients')
@@ -401,6 +434,7 @@ def clients_page():
 
 @app.route('/clients/upload', methods=['POST'])
 def clients_upload():
+    default_category = request.form.get('default_category', 'General').strip() or 'General'
     if 'file' not in request.files:
         flash('No file part selected', 'error')
         return redirect(url_for('clients_page'))
@@ -461,9 +495,9 @@ def clients_upload():
                 name = row[name_idx].strip()
                 phone = row[phone_idx].strip()
                 
-                category = "General"
+                category = default_category
                 if category_idx != -1 and len(row) > category_idx:
-                    category = row[category_idx].strip() or "General"
+                    category = row[category_idx].strip() or default_category
                 
                 if name and phone:
                     normalized = normalize_phone(phone)
@@ -501,6 +535,17 @@ def client_add():
     phone = request.form.get('phone', '').strip()
     category = request.form.get('category', 'General').strip() or 'General'
     
+    # Premium features
+    is_premium = 1 if request.form.get('is_premium') == '1' else 0
+    dob = request.form.get('dob', '').strip() or None
+    event_name = request.form.get('event_name', '').strip() or None
+    event_date = request.form.get('event_date', '').strip() or None
+    
+    # Payment details
+    pending_amount_raw = request.form.get('pending_amount', '0').strip() or '0'
+    pending_amount = float(pending_amount_raw)
+    pending_reason = request.form.get('pending_reason', '').strip() or None
+    
     if not name or not phone:
         flash('Both Name and Phone Number are required.', 'error')
         return redirect(url_for('clients_page'))
@@ -513,8 +558,8 @@ def client_add():
     try:
         conn = get_db_connection()
         conn.execute(
-            "INSERT INTO clients (name, whatsapp_number, category) VALUES (?, ?, ?)",
-            (name, normalized, category)
+            "INSERT INTO clients (name, whatsapp_number, category, is_premium, dob, event_name, event_date, pending_amount, pending_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, normalized, category, is_premium, dob, event_name, event_date, pending_amount, pending_reason)
         )
         conn.commit()
         conn.close()
@@ -549,6 +594,84 @@ def clients_clear():
     return redirect(url_for('clients_page'))
 
 
+@app.route('/payments')
+def payments_page():
+    conn = get_db_connection()
+    # Fetch all clients who have outstanding balance > 0
+    pending_clients_rows = conn.execute(
+        "SELECT * FROM clients WHERE pending_amount > 0 ORDER BY pending_amount DESC"
+    ).fetchall()
+    pending_clients = [dict(row) for row in pending_clients_rows]
+    
+    # Fetch all clients to allow payment assignments
+    all_clients_rows = conn.execute("SELECT id, name, whatsapp_number, pending_amount, pending_reason FROM clients ORDER BY name ASC").fetchall()
+    all_clients = [dict(row) for row in all_clients_rows]
+    conn.close()
+    
+    return render_template('payments.html', active_page='payments', pending_clients=pending_clients, all_clients=all_clients)
+
+
+@app.route('/clients/<int:client_id>/update-payment', methods=['POST'])
+def client_update_payment(client_id):
+    try:
+        pending_amount_raw = request.form.get('pending_amount', '0').strip() or '0'
+        pending_amount = float(pending_amount_raw)
+        pending_reason = request.form.get('pending_reason', '').strip() or None
+        
+        conn = get_db_connection()
+        conn.execute(
+            "UPDATE clients SET pending_amount = ?, pending_reason = ? WHERE id = ?",
+            (pending_amount, pending_reason, client_id)
+        )
+        conn.commit()
+        conn.close()
+        flash('Payment status updated successfully.', 'success')
+    except Exception as e:
+        flash(f'Error updating payment status: {str(e)}', 'error')
+        
+    return redirect(request.referrer or url_for('payments_page'))
+
+
+@app.route('/api/send-payment-reminder', methods=['POST'])
+def api_send_payment_reminder():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        client_id = data.get("client_id")
+        message = data.get("message", "").strip()
+        
+        if not client_id or not message:
+            return jsonify({"status": "error", "message": "Client ID and message are required."}), 400
+            
+        conn = get_db_connection()
+        client = conn.execute("SELECT * FROM clients WHERE id = ?", (client_id,)).fetchone()
+        if not client:
+            conn.close()
+            return jsonify({"status": "error", "message": "Client not found."}), 404
+            
+        settings = load_settings()
+        api = EvolutionAPI(
+            base_url=settings.get('api_url'),
+            api_key=settings.get('api_key'),
+            instance_name=settings.get('instance_name')
+        )
+        
+        # Send message via Evolution API
+        success, error_msg = api.send_message(
+            phone_number=client['whatsapp_number'],
+            text=message
+        )
+        conn.close()
+        
+        if success:
+            return jsonify({"status": "success", "message": f"Payment reminder successfully sent to {client['name']}!"})
+        else:
+            return jsonify({"status": "error", "message": f"Failed to send reminder: {error_msg}"})
+            
+    except Exception as e:
+        logger.error(f"Error in send-payment-reminder API: {e}")
+        return jsonify({"status": "error", "message": f"System error: {str(e)}"}), 500
+
+
 @app.route('/campaigns')
 def campaigns_list():
     conn = get_db_connection()
@@ -568,7 +691,8 @@ def campaign_new():
         target_category = request.form.get('target_category', 'All').strip()
         
         media_file = request.files.get('media')
-        media_path = None
+        existing_media_path = request.form.get('existing_media_path')
+        media_path = existing_media_path if existing_media_path else None
         
         if media_file and media_file.filename != '':
             filename = secure_filename(media_file.filename)
@@ -610,13 +734,26 @@ def campaign_new():
         flash(f"Campaign '{name}' targeting '{target_category}' created and launched in background.", 'success')
         return redirect(url_for('campaign_detail', campaign_id=campaign_id))
         
+    # GET Request
+    clone_id = request.args.get('clone_from')
+    cloned_campaign = None
+    if clone_id:
+        try:
+            conn = get_db_connection()
+            cloned_row = conn.execute("SELECT * FROM campaigns WHERE id = ?", (clone_id,)).fetchone()
+            if cloned_row:
+                cloned_campaign = dict(cloned_row)
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error loading clone campaign: {e}")
+
     conn = get_db_connection()
     categories_rows = conn.execute("SELECT DISTINCT category FROM clients ORDER BY category ASC").fetchall()
     categories = [row['category'] for row in categories_rows if row['category']]
     total_clients = conn.execute("SELECT COUNT(*) FROM clients").fetchone()[0]
     conn.close()
     
-    return render_template('campaign_new.html', active_page='new_campaign', categories=categories, total_clients=total_clients)
+    return render_template('campaign_new.html', active_page='new_campaign', categories=categories, total_clients=total_clients, cloned_campaign=cloned_campaign)
 
 
 @app.route('/campaigns/<int:campaign_id>')
@@ -707,12 +844,14 @@ def settings_page():
         api_key = request.form.get('api_key', '').strip()
         instance_name = request.form.get('instance_name', 'hamar_ai').strip()
         webhook_url = request.form.get('webhook_url', '').strip()
+        openai_api_key = request.form.get('openai_api_key', '').strip()
         
         settings = {
             "api_url": api_url,
             "api_key": api_key,
             "instance_name": instance_name,
-            "webhook_url": webhook_url
+            "webhook_url": webhook_url,
+            "openai_api_key": openai_api_key
         }
         
         if save_settings(settings):
@@ -898,7 +1037,112 @@ def hot_lead_delete(lead_id):
     return redirect(url_for('hot_leads'))
 
 
+@app.route('/api/generate-campaign-message', methods=['POST'])
+def generate_campaign_message():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        prompt_text = data.get("prompt", "").strip()
+        
+        if not prompt_text:
+            return jsonify({"status": "error", "message": "Prompt is required."}), 400
+            
+        settings = load_settings()
+        openai_api_key = settings.get("openai_api_key", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()
+        if not openai_api_key:
+            return jsonify({
+                "status": "error", 
+                "message": "OpenAI API key not found. Please set it in System Settings or your .env file."
+            }), 400
+            
+        # Using LangChain to generate the response
+        from langchain_openai import ChatOpenAI
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_core.output_parsers import StrOutputParser
+        
+        # Instantiate ChatOpenAI
+        chat = ChatOpenAI(
+            openai_api_key=openai_api_key,
+            model="gpt-3.5-turbo",
+            temperature=0.7
+        )
+        
+        # Create a professional prompt template for WhatsApp marketing copy
+        system_prompt = (
+            "You are a professional copywriting AI agent specialized in high-conversion, clean, and highly humanized WhatsApp marketing and outreach campaigns.\n"
+            "Your goal is to generate a highly engaging, concise, and extremely natural WhatsApp message based on the user's instructions.\n\n"
+            "CRITICAL RULES:\n"
+            "1. Personalization: You MUST ALWAYS use the literal template placeholder '{{{{name}}}}' for the recipient's name. NEVER invent, hardcode, or write a specific name (like Suresh, Ramesh, Amit) in the text, even if the user mentions a specific name in their prompt! (e.g., if the user says 'write a birthday wish for Suresh', you must output 'Hi {{{{name}}}}, Happy Birthday!' and NOT 'Hi Suresh').\n"
+            "2. Formatting: Absolutely DO NOT use asterisks (*) for bold text or any markdown characters. Under no circumstances should you output any '*' characters (e.g. do NOT write *Namaste* or *Happy Birthday!*). Keep the text completely plain, clean, and beautifully structured. No bold markdown elements at all. Emojis are welcome but use them tastefully.\n"
+            "3. Tone: Ensure the tone is extremely warm, natural, humanized, and professional. Write exactly how a human business owner or a thoughtful friend would write. Avoid robotic, cheesy, or overly generic AI clichés (e.g., do NOT use phrases like 'Celebrate your special day with joy and laughter', 'Stay blessed and keep shining', 'dher saari badhaiyaan', etc. unless specifically requested). Keep it simple, genuine, and conversational.\n"
+            "4. Clean Signatures: Do NOT add generic placeholders or sign-offs at the end like '[Your Name]', '[Your Company Name]', '[Phone Number]', or sign-offs like 'Warm Regards, [Your Name]'. The message should be complete, self-contained, and ready to send, without needing any bracketed placeholders at the end.\n"
+            "5. Output ONLY the raw message content itself, ready to be sent. Do not include any subject lines, headers, or greeting metadata."
+        )
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("user", "{user_input}")
+        ])
+        
+        # Chain pipeline
+        chain = prompt | chat | StrOutputParser()
+        
+        # Execute the chain
+        generated_copy = chain.invoke({"user_input": prompt_text})
+        
+        return jsonify({
+            "status": "success",
+            "message": generated_copy.strip()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating AI message: {e}")
+        return jsonify({
+            "status": "error",
+            "message": f"AI Generation failed: {str(e)}"
+        }), 500
+
+
+@app.route('/api/send-quick-wish', methods=['POST'])
+def api_send_quick_wish():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        client_id = data.get("client_id")
+        message = data.get("message", "").strip()
+        
+        if not client_id or not message:
+            return jsonify({"status": "error", "message": "Client ID and message are required."}), 400
+            
+        conn = get_db_connection()
+        client = conn.execute("SELECT * FROM clients WHERE id = ?", (client_id,)).fetchone()
+        if not client:
+            conn.close()
+            return jsonify({"status": "error", "message": "Client not found."}), 404
+            
+        settings = load_settings()
+        api = EvolutionAPI(
+            base_url=settings.get('api_url'),
+            api_key=settings.get('api_key'),
+            instance_name=settings.get('instance_name')
+        )
+        
+        # Send message via API
+        success, error_msg = api.send_message(
+            phone_number=client['whatsapp_number'],
+            text=message
+        )
+        conn.close()
+        
+        if success:
+            return jsonify({"status": "success", "message": f"Wish successfully sent to {client['name']}!"})
+        else:
+            return jsonify({"status": "error", "message": f"Failed to send wish: {error_msg}"})
+            
+    except Exception as e:
+        logger.error(f"Error in send-quick-wish API: {e}")
+        return jsonify({"status": "error", "message": f"System error: {str(e)}"}), 500
+
+
 if __name__ == '__main__':
     import sqlite3
     port = int(os.environ.get("PORT", 5000))
-    app.run(debug=False, host='0.0.0.0', port=port)
+    app.run(debug=True, host='0.0.0.0', port=port)

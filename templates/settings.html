@@ -35,6 +35,16 @@
                     <div class="form-text text-secondary small">Provide your public server URL (e.g., via <strong>ngrok</strong>, <strong>Localtunnel</strong> or <strong>VPS</strong>). The CRM will automatically register it to listen for replies at <code>/webhook/evolution</code>.</div>
                 </div>
 
+                <!-- OpenAI Integration Section -->
+                <div class="mb-4 pt-4 border-top border-color">
+                    <h5 class="fw-bold mb-3"><i class="fa-solid fa-wand-magic-sparkles text-gradient me-2"></i>OpenAI AI Assist Integration</h5>
+                    <p class="text-secondary small mb-3">Provide your OpenAI API key to enable the <strong>AI Assist (LangChain Copywriter)</strong> feature inside the Campaign Creator.</p>
+                    
+                    <label for="openaiApiKey" class="form-label">OpenAI API Key</label>
+                    <input type="password" id="openaiApiKey" name="openai_api_key" class="form-control" placeholder="sk-..." value="{{ settings.openai_api_key or '' }}">
+                    <div class="form-text text-secondary small">Your OpenAI secret API key. Kept secure locally inside <code>settings.json</code>.</div>
+                </div>
+
                 <div class="mb-4 pt-3 border-top border-color">
                     <div class="d-flex align-items-center gap-3">
                         <div class="status-indicator {{ 'online' if settings.api_url and settings.api_key else 'idle' }}"></div>

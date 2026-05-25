@@ -63,6 +63,13 @@ class DualCursor:
             return self._lastrowid
         return self.cursor.lastrowid
 
+    @property
+    def rowcount(self):
+        return self.cursor.rowcount
+
+    def __getattr__(self, name):
+        return getattr(self.cursor, name)
+
 class DualConnection:
     def __init__(self, conn, is_postgres):
         self.conn = conn
@@ -107,7 +114,13 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 whatsapp_number TEXT NOT NULL UNIQUE,
-                category TEXT DEFAULT 'General'
+                category TEXT DEFAULT 'General',
+                is_premium INTEGER DEFAULT 0,
+                dob TEXT,
+                event_name TEXT,
+                event_date TEXT,
+                pending_amount REAL DEFAULT 0.0,
+                pending_reason TEXT
             )
         ''')
         
@@ -163,6 +176,48 @@ def init_db():
             
         cursor.execute("""
             SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'clients' AND column_name = 'is_premium'
+        """)
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE clients ADD COLUMN is_premium INTEGER DEFAULT 0")
+
+        cursor.execute("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'clients' AND column_name = 'dob'
+        """)
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE clients ADD COLUMN dob TEXT")
+
+        cursor.execute("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'clients' AND column_name = 'event_name'
+        """)
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE clients ADD COLUMN event_name TEXT")
+
+        cursor.execute("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'clients' AND column_name = 'event_date'
+        """)
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE clients ADD COLUMN event_date TEXT")
+            
+        cursor.execute("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'clients' AND column_name = 'pending_amount'
+        """)
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE clients ADD COLUMN pending_amount REAL DEFAULT 0.0")
+
+        cursor.execute("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'clients' AND column_name = 'pending_reason'
+        """)
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE clients ADD COLUMN pending_reason TEXT")
+            
+        cursor.execute("""
+            SELECT column_name FROM information_schema.columns 
             WHERE table_name = 'campaigns' AND column_name = 'target_category'
         """)
         if not cursor.fetchone():
@@ -175,7 +230,13 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 whatsapp_number TEXT NOT NULL UNIQUE,
-                category TEXT DEFAULT 'General'
+                category TEXT DEFAULT 'General',
+                is_premium INTEGER DEFAULT 0,
+                dob TEXT,
+                event_name TEXT,
+                event_date TEXT,
+                pending_amount REAL DEFAULT 0.0,
+                pending_reason TEXT
             )
         ''')
         
@@ -226,6 +287,18 @@ def init_db():
         client_columns = [row[1] for row in cursor.fetchall()]
         if 'category' not in client_columns:
             cursor.execute("ALTER TABLE clients ADD COLUMN category TEXT DEFAULT 'General'")
+        if 'is_premium' not in client_columns:
+            cursor.execute("ALTER TABLE clients ADD COLUMN is_premium INTEGER DEFAULT 0")
+        if 'dob' not in client_columns:
+            cursor.execute("ALTER TABLE clients ADD COLUMN dob TEXT")
+        if 'event_name' not in client_columns:
+            cursor.execute("ALTER TABLE clients ADD COLUMN event_name TEXT")
+        if 'event_date' not in client_columns:
+            cursor.execute("ALTER TABLE clients ADD COLUMN event_date TEXT")
+        if 'pending_amount' not in client_columns:
+            cursor.execute("ALTER TABLE clients ADD COLUMN pending_amount REAL DEFAULT 0.0")
+        if 'pending_reason' not in client_columns:
+            cursor.execute("ALTER TABLE clients ADD COLUMN pending_reason TEXT")
             
         cursor.pragma = cursor.execute("PRAGMA table_info(campaigns)")
         campaign_columns = [row[1] for row in cursor.fetchall()]

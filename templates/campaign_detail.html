@@ -44,6 +44,12 @@
                 </form>
                 {% endif %}
             </div>
+            
+            <div class="d-grid mb-4">
+                <a href="{{ url_for('campaign_new', clone_from=campaign.id) }}" class="btn btn-outline-primary w-100">
+                    <i class="fa-solid fa-rotate-right me-2"></i>Reuse Campaign Settings (Send Again)
+                </a>
+            </div>
 
             <div class="border-top border-color pt-4">
                 <h6 class="fw-bold mb-2">Message Body Template</h6>

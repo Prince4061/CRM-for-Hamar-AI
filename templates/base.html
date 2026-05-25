@@ -53,6 +53,10 @@
                     <i class="fa-solid fa-fire text-danger"></i>
                     <span>Hot Leads</span>
                 </a>
+                <a href="{{ url_for('payments_page') }}" class="nav-item {% if active_page == 'payments' %}active{% endif %}">
+                    <i class="fa-solid fa-credit-card text-gradient"></i>
+                    <span>Payment Reminders</span>
+                </a>
                 <a href="{{ url_for('settings_page') }}" class="nav-item {% if active_page == 'settings' %}active{% endif %}">
                     <i class="fa-solid fa-gears"></i>
                     <span>WhatsApp Settings</span>

@@ -4,6 +4,46 @@
 {% block page_title %}Outreach Overview{% endblock %}
 
 {% block content %}
+{% if celebrations %}
+<!-- Top Premium Client Celebrations Outreach Recommendations Banner -->
+<div class="glass-card mb-4" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%); border: 1px solid rgba(99, 102, 241, 0.25);">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <div class="stat-icon success" style="background-color: rgba(99, 102, 241, 0.15); color: var(--accent); width: 44px; height: 44px; border-radius: 12px; margin-bottom: 0;">
+                <i class="fa-solid fa-gift animate-pulse"></i>
+            </div>
+            <div>
+                <h5 class="fw-bold mb-1" style="font-size: 1.02rem;"><i class="fa-solid fa-wand-magic-sparkles text-gradient me-1"></i>Today's Outreach Opportunities ({{ celebrations|length }})</h5>
+                <p class="text-secondary small mb-0" style="font-size: 0.76rem;">
+                    Premium client events detected today! Deliver a personalized greeting instantly to keep relationship bonds strong.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row g-2 mt-3">
+        {% for client in celebrations %}
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="bg-primary p-2 px-3 rounded-3 border d-flex justify-content-between align-items-center" style="background-color: rgba(255,255,255,0.015); border-color: rgba(255,255,255,0.08) !important;">
+                <div>
+                    <span class="fw-bold d-block text-white" style="font-size: 0.85rem;">
+                        {{ client.name }}
+                        <span class="text-warning ms-1" style="color: #fbbf24 !important;"><i class="fa-solid fa-star animate-pulse"></i></span>
+                    </span>
+                    <span class="badge mt-1" style="font-size: 0.68rem; background-color: rgba(99, 102, 241, 0.15); color: var(--accent); padding: 2px 8px;">
+                        <i class="fa-solid fa-cake-candles me-1"></i>{{ client.event_type }}
+                    </span>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm py-1 px-3 d-flex align-items-center gap-1" style="font-size: 0.75rem; border-radius: 8px;" onclick="openQuickWishModal({{ client.id }}, '{{ client.name }}', '{{ client.event_type }}')">
+                    <i class="fa-solid fa-bolt"></i> Quick Wish
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Metric Cards -->
 <div class="row g-4 mb-5">
     <div class="col-12 col-sm-6 col-md-4 col-xl-2">
@@ -262,4 +302,191 @@
     color: #ff3b30;
 }
 </style>
+
+<!-- Quick Wish Modal -->
+<div class="modal fade" id="quickWishModal" tabindex="-1" aria-labelledby="quickWishModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-card p-0" style="border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(18, 18, 22, 0.95); backdrop-filter: blur(20px);">
+            <div class="modal-header border-bottom border-color p-2 px-3">
+                <h6 class="modal-title fw-bold text-white mb-0" id="quickWishModalLabel">
+                    <i class="fa-solid fa-paper-plane text-gradient me-2"></i>Send Quick Greetings
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3 text-white">
+                <p class="text-secondary small mb-3" style="font-size: 0.78rem;">Send an instant outreach wish to premium client <strong id="wishClientName" class="text-white">Client Name</strong> for their <strong id="wishEventType" class="text-white">Event</strong>.</p>
+                
+                <!-- AI Personalizer Section inside Quick Wish Modal -->
+                <div class="mb-3 p-2.5 rounded-3" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(99, 102, 241, 0.2);">
+                    <div class="d-flex justify-content-between align-items-center mb-1.5">
+                        <label for="wishAiPrompt" class="form-label text-secondary small fw-semibold mb-0" style="font-size: 0.72rem; color: #a5b4fc !important;">
+                            <i class="fa-solid fa-wand-magic-sparkles text-gradient me-1"></i> AI Personalizer Assist
+                        </label>
+                        <span class="badge text-secondary small" style="font-size: 0.62rem; background: rgba(99,102,241,0.15); color: #a5b4fc !important;">LangChain AI</span>
+                    </div>
+                    <div class="input-group input-group-sm">
+                        <input type="text" id="wishAiPrompt" class="form-control bg-primary text-white border-color" placeholder="e.g. casual tone, in Hindi, add real estate discount..." style="font-size: 0.75rem;">
+                        <button class="btn btn-primary btn-sm px-3 d-flex align-items-center gap-1" type="button" id="btnGenWishAi" onclick="generateWishWithAi()" style="font-size: 0.75rem; border-radius: 0 8px 8px 0;">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Generate
+                        </button>
+                    </div>
+                    <div id="wishAiStatus" class="text-secondary small mt-1" style="font-size: 0.68rem; display: none;">
+                        <i class="fa-solid fa-spinner fa-spin text-gradient me-1"></i> Designing humanized greetings...
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <label for="wishMessage" class="form-label text-secondary small fw-semibold mb-1" style="font-size: 0.75rem;">Personalized Outreach Greetings</label>
+                    <textarea class="form-control bg-primary text-white border-color" id="wishMessage" rows="5" style="font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;"></textarea>
+                </div>
+                
+                <div id="wishStatusText" class="text-secondary small mt-1" style="font-size: 0.72rem; display: none;">
+                    <i class="fa-solid fa-spinner fa-spin text-gradient me-1"></i> Delivering your greeting via WhatsApp...
+                </div>
+                <div id="wishErrorText" class="text-danger small mt-1" style="font-size: 0.72rem; display: none;"></div>
+            </div>
+            <div class="modal-footer border-top border-color p-2 px-3">
+                <button type="button" class="btn btn-secondary btn-sm py-1" data-bs-dismiss="modal" style="font-size: 0.78rem;">Cancel</button>
+                <button type="button" id="sendWishBtn" class="btn btn-primary btn-sm fw-bold px-3 d-flex align-items-center gap-1 py-1" style="font-size: 0.78rem;" onclick="submitQuickWish()">
+                    <i class="fa-solid fa-paper-plane"></i> Send Wish
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let activeWishClientId = null;
+
+function openQuickWishModal(clientId, clientName, eventType) {
+    activeWishClientId = clientId;
+    document.getElementById('wishClientName').innerText = clientName;
+    document.getElementById('wishEventType').innerText = eventType;
+    document.getElementById('wishAiPrompt').value = '';
+    
+    let defaultMsg = "";
+    if (eventType.includes("Birthday")) {
+        defaultMsg = `Hi ${clientName}, wishing you a very Happy Birthday! 🎂🎉 May this year bring you immense joy, great health, and stellar success. We appreciate having you as a partner!`;
+    } else {
+        defaultMsg = `Hi ${clientName}, sending warm congratulations on your ${eventType}! 🌟 Thank you for your continued trust and support.`;
+    }
+    
+    document.getElementById('wishMessage').value = defaultMsg;
+    document.getElementById('wishErrorText').style.display = 'none';
+    document.getElementById('wishStatusText').style.display = 'none';
+    document.getElementById('wishAiStatus').style.display = 'none';
+    
+    const myModal = new bootstrap.Modal(document.getElementById('quickWishModal'));
+    myModal.show();
+}
+
+async function generateWishWithAi() {
+    const promptInput = document.getElementById('wishAiPrompt');
+    const userInstruction = promptInput.value.trim();
+    const clientName = document.getElementById('wishClientName').innerText;
+    const eventType = document.getElementById('wishEventType').innerText;
+    
+    let promptText = "";
+    if (eventType.includes("Birthday")) {
+        promptText = `Write a warm, humanized, and extremely natural WhatsApp birthday wish for a premium client named ${clientName}. Do not use bold asterisks (*), keep the formatting clean, warm, and highly professional.`;
+    } else {
+        promptText = `Write a warm, humanized, and extremely natural WhatsApp congratulatory wish for a premium client named ${clientName} for their special event: ${eventType}. Do not use bold asterisks (*), keep it clean and professional.`;
+    }
+    
+    if (userInstruction) {
+        promptText += ` Make sure to adapt the message to these custom constraints: ${userInstruction}`;
+    }
+    
+    const textarea = document.getElementById('wishMessage');
+    const btnGen = document.getElementById('btnGenWishAi');
+    const statusDiv = document.getElementById('wishAiStatus');
+    const errorText = document.getElementById('wishErrorText');
+    
+    errorText.style.display = 'none';
+    statusDiv.style.display = 'block';
+    btnGen.disabled = true;
+    promptInput.disabled = true;
+    
+    try {
+        const response = await fetch('/api/generate-campaign-message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ prompt: promptText })
+        });
+        
+        const data = await response.json();
+        if (response.ok && data.status === 'success') {
+            let finalMsg = data.message;
+            // Robust placeholder substitution
+            finalMsg = finalMsg.replace(/{{name}}/g, clientName);
+            finalMsg = finalMsg.replace(/{{Name}}/g, clientName);
+            finalMsg = finalMsg.replace(/{name}/g, clientName);
+            finalMsg = finalMsg.replace(/{Name}/g, clientName);
+            
+            textarea.value = finalMsg;
+        } else {
+            errorText.textContent = data.message || "Failed to generate wish with AI.";
+            errorText.style.display = 'block';
+        }
+    } catch (e) {
+        errorText.textContent = "Error communicating with AI assistant.";
+        errorText.style.display = 'block';
+    } finally {
+        statusDiv.style.display = 'none';
+        btnGen.disabled = false;
+        promptInput.disabled = false;
+    }
+}
+
+async function submitQuickWish() {
+    const message = document.getElementById('wishMessage').value.trim();
+    const sendBtn = document.getElementById('sendWishBtn');
+    const statusText = document.getElementById('wishStatusText');
+    const errorText = document.getElementById('wishErrorText');
+    
+    if (!message) {
+        errorText.textContent = "Please draft a greeting message before sending!";
+        errorText.style.display = 'block';
+        return;
+    }
+    
+    errorText.style.display = 'none';
+    statusText.style.display = 'block';
+    sendBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/send-quick-wish', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                client_id: activeWishClientId,
+                message: message
+            })
+        });
+        
+        const data = await response.json();
+        if (response.ok && data.status === 'success') {
+            alert(data.message || "Greetings sent successfully!");
+            const modalEl = document.getElementById('quickWishModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            modal.hide();
+        } else {
+            errorText.textContent = data.message || "Failed to send greeting. Please try again.";
+            errorText.style.display = 'block';
+        }
+    } catch (e) {
+        errorText.textContent = "Failed to communicate with the server. Please verify settings.";
+        errorText.style.display = 'block';
+    } finally {
+        statusText.style.display = 'none';
+        sendBtn.disabled = false;
+    }
+}
+</script>
 {% endblock %}

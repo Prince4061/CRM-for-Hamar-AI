@@ -9,4 +9,8 @@ crm.db
 
 # Settings / Local secrets
 .env
-# settings.json
+settings.json
+
+# Scratch & temp files
+scratch/
+

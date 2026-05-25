@@ -4,191 +4,303 @@
 {% block page_title %}Client Contact Database{% endblock %}
 
 {% block content %}
-<div class="row g-4">
-    <!-- CSV Upload Panel -->
-    <div class="col-12 col-lg-4">
-        <!-- CSV Import Card -->
-        <div class="glass-card mb-4">
-            <h5 class="fw-bold mb-3"><i class="fa-solid fa-file-import text-gradient me-2"></i>Import Clients</h5>
-            <p class="text-secondary small mb-4">Upload a CSV file containing your contacts. The system will look for column headers like <strong>Name</strong> and <strong>WhatsApp / Phone / Number</strong>.</p>
-            
+<style>
+    /* Super compact custom styles for this screen */
+    .glass-card {
+        padding: 16px 20px !important;
+        margin-bottom: 16px !important;
+        border-radius: 16px !important;
+    }
+    #clientsTable td {
+        padding: 8px 16px !important;
+        font-size: 0.88rem;
+    }
+    #clientsTable th {
+        padding: 8px 16px !important;
+        font-size: 0.78rem;
+    }
+    .dropzone {
+        border: 2px dashed var(--border-color);
+        border-radius: 10px;
+        background-color: var(--bg-primary);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .dropzone:hover {
+        border-color: var(--accent);
+        background-color: rgba(99, 102, 241, 0.02);
+    }
+</style>
+
+<!-- Concise Horizontal Operations Panel -->
+<div class="glass-card">
+    <div class="row g-3">
+        <!-- CSV Import Column -->
+        <div class="col-12 col-lg-6 border-end border-color pe-lg-4">
+            <h6 class="fw-bold mb-2 text-gradient" style="font-size: 0.9rem;"><i class="fa-solid fa-file-import me-2"></i>Import Contacts via CSV</h6>
             <form action="{{ url_for('clients_upload') }}" method="POST" enctype="multipart/form-data">
-                <div class="mb-4">
-                    <label for="csvFile" class="form-label">Choose CSV File</label>
-                    <div class="dropzone" onclick="document.getElementById('csvFile').click()">
-                        <i class="fa-solid fa-cloud-arrow-up text-gradient"></i>
-                        <p class="fw-semibold mb-1">Click to browse file</p>
-                        <p class="text-secondary small">Supports .csv files</p>
-                        <input type="file" id="csvFile" name="file" accept=".csv" class="d-none" onchange="updateFileLabel(this)">
+                <div class="row g-2 align-items-center">
+                    <!-- Dropzone selector -->
+                    <div class="col-12 col-sm-6">
+                        <div class="dropzone text-center" style="padding: 10px !important;" onclick="document.getElementById('csvFile').click()">
+                            <i class="fa-solid fa-cloud-arrow-up text-gradient mb-1" style="font-size: 1.1rem;"></i>
+                            <p class="fw-semibold mb-0" id="fileSelectedLabel" style="font-size: 0.75rem; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">Click to choose .csv</p>
+                            <input type="file" id="csvFile" name="file" accept=".csv" class="d-none" onchange="updateFileLabel(this)">
+                        </div>
                     </div>
-                    <div id="fileSelectedLabel" class="text-center mt-2 small text-secondary fw-semibold"></div>
-                </div>
-
-                <div class="d-grid">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fa-solid fa-circle-arrow-up me-2"></i>Upload and Parse
-                    </button>
+                    <!-- Default Category and Upload Button -->
+                    <div class="col-12 col-sm-6">
+                        <div class="mb-2">
+                            <input type="text" class="form-control py-1 px-2" style="font-size: 0.8rem; height: 32px; border-radius: 8px;" id="upload_default_category" name="default_category" placeholder="Default Category (Optional)" list="uploadCategories">
+                            <datalist id="uploadCategories">
+                                <option value="General"></option>
+                                <option value="Buyers"></option>
+                                <option value="Sellers"></option>
+                                <option value="Investors"></option>
+                                <option value="Agents"></option>
+                                {% for cat in categories %}
+                                    {% if cat not in ['General', 'Buyers', 'Sellers', 'Investors', 'Agents'] %}
+                                        <option value="{{ cat }}"></option>
+                                    {% endif %}
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm w-100 py-1" style="height: 32px; font-size: 0.8rem; border-radius: 8px;">
+                            <i class="fa-solid fa-circle-arrow-up me-1"></i>Upload and Parse
+                        </button>
+                    </div>
                 </div>
             </form>
-
-            <div class="mt-4 pt-4 border-top border-color">
-                <h6 class="fw-bold mb-2">CSV Sample Format:</h6>
-                <pre class="bg-primary p-3 rounded-3 small text-secondary">Name,WhatsApp,Category
-Ramesh Kumar,9876543210,Buyers
-Priya Sharma,8765432109,Investors</pre>
+            <div class="mt-2 text-secondary" style="font-size: 0.72rem;">
+                <i class="fa-solid fa-circle-info me-1 text-gradient"></i> CSV Headers: <strong>Name, WhatsApp, Category</strong> (Optional)
             </div>
         </div>
 
-        <!-- Single Client Add Card -->
-        <div class="glass-card">
-            <h5 class="fw-bold mb-3"><i class="fa-solid fa-user-plus text-gradient me-2"></i>Add Single Contact</h5>
-            <p class="text-secondary small mb-4">Add a test contact directly to the database for quick outreach validation.</p>
-            
+        <!-- Add Single Contact Column -->
+        <div class="col-12 col-lg-6 ps-lg-4">
+            <h6 class="fw-bold mb-2 text-gradient" style="font-size: 0.9rem;"><i class="fa-solid fa-user-plus me-2"></i>Add Single Contact</h6>
             <form action="{{ url_for('client_add') }}" method="POST">
-                <div class="mb-3">
-                    <label for="client_name" class="form-label">Client Name</label>
-                    <input type="text" class="form-control" id="client_name" name="name" placeholder="e.g. Rahul Sharma" required>
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <input type="text" class="form-control py-1 px-2" style="font-size: 0.8rem; height: 32px; border-radius: 8px;" id="client_name" name="name" placeholder="Contact Name" required>
+                    </div>
+                    <div class="col-6">
+                        <input type="text" class="form-control py-1 px-2" style="font-size: 0.8rem; height: 32px; border-radius: 8px;" id="client_phone" name="phone" placeholder="WhatsApp Number" required>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label for="client_phone" class="form-label">WhatsApp Number / Phone</label>
-                    <input type="text" class="form-control" id="client_phone" name="phone" placeholder="e.g. 916263210328" required>
+                <div class="row g-2 mb-2">
+                    <div class="col-7 col-sm-8">
+                        <input type="text" class="form-control py-1 px-2" style="font-size: 0.8rem; height: 32px; border-radius: 8px;" id="client_category" name="category" placeholder="Category (e.g. Buyers)" list="defaultCategories" required>
+                        <datalist id="defaultCategories">
+                            <option value="General"></option>
+                            <option value="Buyers"></option>
+                            <option value="Sellers"></option>
+                            <option value="Investors"></option>
+                            <option value="Agents"></option>
+                            {% for cat in categories %}
+                                {% if cat not in ['General', 'Buyers', 'Sellers', 'Investors', 'Agents'] %}
+                                    <option value="{{ cat }}"></option>
+                                {% endif %}
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    <div class="col-5 col-sm-4">
+                        <button type="submit" class="btn btn-primary btn-sm w-100 py-1" style="height: 32px; font-size: 0.8rem; border-radius: 8px;">
+                            <i class="fa-solid fa-plus me-1"></i>Add Contact
+                        </button>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label for="client_category" class="form-label">Category</label>
-                    <input type="text" class="form-control" id="client_category" name="category" placeholder="e.g. Buyers" list="defaultCategories" required>
-                    <datalist id="defaultCategories">
-                        <option value="General"></option>
-                        <option value="Buyers"></option>
-                        <option value="Sellers"></option>
-                        <option value="Investors"></option>
-                        <option value="Agents"></option>
-                        {% for cat in categories %}
-                            {% if cat not in ['General', 'Buyers', 'Sellers', 'Investors', 'Agents'] %}
-                                <option value="{{ cat }}"></option>
-                            {% endif %}
-                        {% endfor %}
-                    </datalist>
+                
+                <div class="d-flex align-items-center flex-wrap gap-3 mb-2">
+                    <!-- Premium Checkbox switch -->
+                    <div class="form-check form-switch text-start" style="padding-left: 2.5em;">
+                        <input class="form-check-input" type="checkbox" role="switch" id="is_premium" name="is_premium" value="1" onchange="togglePremiumDetails(this)">
+                        <label class="form-check-label text-secondary small fw-semibold" style="font-size: 0.76rem;" for="is_premium">Mark as Premium Client ✨</label>
+                    </div>
+                    <!-- Payment Checkbox switch -->
+                    <div class="form-check form-switch text-start" style="padding-left: 2.5em;">
+                        <input class="form-check-input" type="checkbox" role="switch" id="has_payment" onchange="togglePaymentDetails(this)">
+                        <label class="form-check-label text-secondary small fw-semibold" style="font-size: 0.76rem;" for="has_payment">Assign Outstanding Payment 💳</label>
+                    </div>
                 </div>
-                <div class="d-grid">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fa-solid fa-plus me-2"></i>Add Contact
-                    </button>
+                
+                <!-- Premium Details Sub-Form -->
+                <div id="premiumDetailsRow" class="mb-3 p-3 rounded-3" style="display: none; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(99, 102, 241, 0.2); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small fw-bold text-white" style="font-size: 0.75rem; color: #a5b4fc !important;">
+                            <i class="fa-solid fa-star me-1 text-warning"></i> Premium Client Celebrations
+                        </span>
+                        <span class="badge" style="font-size: 0.62rem; background: rgba(99, 102, 241, 0.1); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.15);">Interactive Widget</span>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-12 col-sm-4">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="small text-secondary fw-semibold mb-0" style="font-size: 0.68rem;">Date of Birth</label>
+                                <button type="button" class="btn btn-link p-0 text-gradient small fw-bold" style="font-size: 0.65rem; text-decoration: none;" onclick="setDateToToday('dob')">
+                                    <i class="fa-solid fa-calendar-day"></i> Today
+                                </button>
+                            </div>
+                            <div class="date-input-container">
+                                <input type="date" id="dob_input" class="form-control py-0 px-2 bg-primary text-white border-color" style="font-size: 0.76rem; height: 30px; border-radius: 6px; color-scheme: dark;" name="dob">
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="small text-secondary fw-semibold mb-0" style="font-size: 0.68rem;">Event Date</label>
+                                <button type="button" class="btn btn-link p-0 text-gradient small fw-bold" style="font-size: 0.65rem; text-decoration: none;" onclick="setDateToToday('event_date')">
+                                    <i class="fa-solid fa-calendar-day"></i> Today
+                                </button>
+                            </div>
+                            <div class="date-input-container">
+                                <input type="date" id="event_date_input" class="form-control py-0 px-2 bg-primary text-white border-color" style="font-size: 0.76rem; height: 30px; border-radius: 6px; color-scheme: dark;" name="event_date">
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <div class="d-flex align-items-center mb-1">
+                                <label class="small text-secondary fw-semibold mb-0" style="font-size: 0.68rem; margin-top: 1px;">Event Name</label>
+                            </div>
+                            <input type="text" class="form-control py-0 px-2 bg-primary text-white border-color" style="font-size: 0.76rem; height: 30px; border-radius: 6px;" name="event_name" placeholder="e.g. Anniversary">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Details Sub-Form -->
+                <div id="paymentDetailsRow" class="mb-3 p-3 rounded-3" style="display: none; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(99, 102, 241, 0.2); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small fw-bold text-white" style="font-size: 0.75rem; color: #a5b4fc !important;">
+                            <i class="fa-solid fa-wallet me-1 text-success"></i> Outstanding Payment Tracker
+                        </span>
+                        <span class="badge" style="font-size: 0.62rem; background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.15);">Balance Widget</span>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="small text-secondary fw-semibold mb-1" style="font-size: 0.68rem; display: block;">Pending Payment Amount</label>
+                            <input type="number" step="0.01" class="form-control py-0 px-2 bg-primary text-white border-color" style="font-size: 0.76rem; height: 30px; border-radius: 6px;" name="pending_amount" placeholder="e.g. 5000">
+                        </div>
+                        <div class="col-6">
+                            <label class="small text-secondary fw-semibold mb-1" style="font-size: 0.68rem; display: block;">Pending Payment Reason</label>
+                            <input type="text" class="form-control py-0 px-2 bg-primary text-white border-color" style="font-size: 0.76rem; height: 30px; border-radius: 6px;" name="pending_reason" placeholder="e.g. Flat 302 registration">
+                        </div>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
+</div>
 
-    <!-- Client Database List -->
-    <div class="col-12 col-lg-8">
-        <div class="glass-card">
-            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                <div>
-                    <h5 class="fw-bold mb-1">Contacts list ({{ clients|length }})</h5>
-                    <p class="text-secondary small mb-0">List of all active client numbers imported in the database.</p>
-                </div>
-                {% if clients %}
-                <form id="clear-clients-form" action="{{ url_for('clients_clear') }}" method="POST" class="d-inline">
-                    <button type="button" onclick="if(confirm('Are you sure you want to delete ALL clients? This will clear logs too.')) document.getElementById('clear-clients-form').submit();" class="btn btn-outline-danger btn-sm">
-                        <i class="fa-solid fa-trash-can me-2"></i>Clear All Contacts
-                    </button>
-                </form>
-                {% endif %}
-            </div>
+<!-- Full Width Contacts Database List -->
+<div class="glass-card">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <h5 class="fw-bold mb-1" style="font-size: 1.05rem;">Contacts Registry ({{ clients|length }})</h5>
+            <p class="text-secondary small mb-0" style="font-size: 0.75rem;">List of all active client numbers imported in the database.</p>
+        </div>
+        {% if clients %}
+        <form id="clear-clients-form" action="{{ url_for('clients_clear') }}" method="POST" class="d-inline">
+            <button type="button" onclick="if(confirm('Are you sure you want to delete ALL clients? This will clear logs too.')) document.getElementById('clear-clients-form').submit();" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.78rem;">
+                <i class="fa-solid fa-trash-can me-1"></i>Clear Database
+            </button>
+        </form>
+        {% endif %}
+    </div>
 
-            {% if clients %}
-            <div class="mb-3 row g-2">
-                <div class="col-12 col-md-8">
-                    <div class="input-group">
-                        <span class="input-group-text bg-primary border-color text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
-                        <input type="text" id="clientSearch" class="form-control" placeholder="Search contacts by name or phone...">
-                    </div>
-                </div>
-                <div class="col-12 col-md-4">
-                    <select id="categoryFilter" class="form-select bg-primary border-color text-secondary" style="color: var(--text-primary) !important;">
-                        <option value="">All Categories</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}">{{ cat }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+    {% if clients %}
+    <div class="mb-3 row g-2">
+        <div class="col-12 col-md-8">
+            <div class="input-group">
+                <span class="input-group-text bg-primary border-color text-secondary py-1" style="font-size: 0.8rem;"><i class="fa-solid fa-magnifying-glass"></i></span>
+                <input type="text" id="clientSearch" class="form-control py-1" style="font-size: 0.8rem; height: 32px;" placeholder="Search contacts by name or phone...">
             </div>
-
-            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-                <table class="custom-table w-100" id="clientsTable">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Client Name</th>
-                            <th>Category</th>
-                            <th>WhatsApp Number</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for client in clients %}
-                        <tr data-category="{{ client.category }}">
-                            <td class="small text-secondary fw-semibold">#{{ loop.index }}</td>
-                            <td class="fw-semibold">{{ client.name }}</td>
-                            <td>
-                                <span class="status-badge" style="background-color: var(--accent-light); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.2);">
-                                    <i class="fa-solid fa-tag me-1 small"></i>{{ client.category or 'General' }}
-                                </span>
-                            </td>
-                            <td>
-                                <a href="https://wa.me/{{ client.whatsapp_number }}" target="_blank" class="text-decoration-none">
-                                    <i class="fa-brands fa-whatsapp text-success me-2"></i>{{ client.whatsapp_number }}
-                                </a>
-                            </td>
-                            <td>
-                                <div class="d-flex align-items-center gap-3">
-                                    <button type="button" class="btn btn-link text-warning p-0" onclick="triggerSimulationModal({{ client.id }}, '{{ client.name }}')" title="Simulate WhatsApp Reply">
-                                        <i class="fa-solid fa-reply"></i>
-                                    </button>
-                                    <form id="delete-client-{{ client.id }}" action="{{ url_for('client_delete', client_id=client.id) }}" method="POST" class="d-inline">
-                                        <button type="button" onclick="if(confirm('Delete this client?')) document.getElementById('delete-client-{{ client.id }}').submit();" class="btn btn-link text-danger p-0" title="Delete client">
-                                            <i class="fa-solid fa-trash"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="text-center py-5">
-                <i class="fa-solid fa-users text-secondary fs-1 mb-3 opacity-50"></i>
-                <h6 class="fw-bold">No contacts imported yet</h6>
-                <p class="text-secondary small">Upload a CSV file on the left to populate the database.</p>
-            </div>
-            {% endif %}
+        </div>
+        <div class="col-12 col-md-4">
+            <select id="categoryFilter" class="form-select bg-primary border-color text-secondary py-1" style="color: var(--text-primary) !important; font-size: 0.8rem; height: 32px;">
+                <option value="">All Categories</option>
+                {% for cat in categories %}
+                <option value="{{ cat }}">{{ cat }}</option>
+                {% endfor %}
+            </select>
         </div>
     </div>
+
+    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+        <table class="custom-table w-100" id="clientsTable">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">ID</th>
+                    <th style="width: 40%;">Client Name</th>
+                    <th style="width: 22%;">Category</th>
+                    <th style="width: 20%;">WhatsApp Number</th>
+                    <th style="width: 10%;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for client in clients %}
+                <tr data-category="{{ client.category }}">
+                    <td class="small text-secondary fw-semibold">#{{ loop.index }}</td>
+                    <td class="fw-semibold text-white">
+                        {{ client.name }}
+                        {% if client.is_premium %}
+                        <span class="text-warning ms-1" title="Premium Client ✨" style="color: #fbbf24 !important;"><i class="fa-solid fa-star animate-pulse"></i></span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status-badge" style="background-color: var(--accent-light); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.15); padding: 2px 8px; font-size: 0.72rem;">
+                            <i class="fa-solid fa-tag me-1 small"></i>{{ client.category or 'General' }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="https://wa.me/{{ client.whatsapp_number }}" target="_blank" class="text-decoration-none small">
+                            <i class="fa-brands fa-whatsapp text-success me-1"></i>{{ client.whatsapp_number }}
+                        </a>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-link text-warning p-0" onclick="triggerSimulationModal({{ client.id }}, '{{ client.name }}')" title="Simulate WhatsApp Reply" style="font-size: 0.85rem;">
+                                <i class="fa-solid fa-reply"></i>
+                            </button>
+                            <form id="delete-client-{{ client.id }}" action="{{ url_for('client_delete', client_id=client.id) }}" method="POST" class="d-inline m-0">
+                                <button type="button" onclick="if(confirm('Delete this client?')) document.getElementById('delete-client-{{ client.id }}').submit();" class="btn btn-link text-danger p-0" title="Delete client" style="font-size: 0.85rem;">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4">
+        <i class="fa-solid fa-users text-secondary fs-2 mb-2 opacity-50"></i>
+        <h6 class="fw-bold mb-1" style="font-size: 0.9rem;">No contacts imported yet</h6>
+        <p class="text-secondary small mb-0">Use the control panel above to upload a CSV file or add new contacts.</p>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Simulation Modal -->
 <div class="modal fade" id="simulationModal" tabindex="-1" aria-labelledby="simulationModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content glass-card p-0" style="border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(18, 18, 22, 0.95); backdrop-filter: blur(20px);">
-            <div class="modal-header border-bottom border-color p-3">
-                <h5 class="modal-title fw-bold text-white" id="simulationModalLabel">
-                    <i class="fa-solid fa-flask text-warning me-2 animate-bounce"></i>Simulate WhatsApp Reply
-                </h5>
+            <div class="modal-header border-bottom border-color p-2 px-3">
+                <h6 class="modal-title fw-bold text-white mb-0" id="simulationModalLabel">
+                    <i class="fa-solid fa-flask text-warning me-2"></i>Simulate WhatsApp Reply
+                </h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="simulationForm" method="POST">
-                <div class="modal-body p-4 text-white">
-                    <p class="text-secondary small mb-3">Trigger a mock WhatsApp reply from <strong id="simClientName">Client</strong>. This will simulate a real incoming webhook and instantly classify them as a Hot Lead.</p>
+                <div class="modal-body p-3 text-white">
+                    <p class="text-secondary small mb-3" style="font-size: 0.78rem;">Trigger a mock WhatsApp reply from <strong id="simClientName">Client</strong>. This will simulate a real incoming webhook and instantly classify them as a Hot Lead.</p>
                     
-                    <div class="mb-3">
-                        <label for="simMessage" class="form-label text-secondary small fw-semibold">Custom Message (Optional)</label>
-                        <textarea class="form-control bg-primary text-white border-color" id="simMessage" name="message" rows="3" placeholder="Leave empty for a random real estate inquiry reply..."></textarea>
+                    <div class="mb-2">
+                        <label for="simMessage" class="form-label text-secondary small fw-semibold mb-1" style="font-size: 0.75rem;">Custom Message (Optional)</label>
+                        <textarea class="form-control bg-primary text-white border-color" id="simMessage" name="message" rows="2" style="font-size: 0.8rem;" placeholder="Leave empty for a random real estate inquiry reply..."></textarea>
                     </div>
                 </div>
-                <div class="modal-footer border-top border-color p-3">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-warning btn-sm text-dark fw-bold">
+                <div class="modal-footer border-top border-color p-2 px-3">
+                    <button type="button" class="btn btn-secondary btn-sm py-1" data-bs-dismiss="modal" style="font-size: 0.78rem;">Close</button>
+                    <button type="submit" class="btn btn-warning btn-sm text-dark fw-bold py-1" style="font-size: 0.78rem;">
                         <i class="fa-solid fa-bolt me-1"></i>Inject Reply
                     </button>
                 </div>
@@ -210,9 +322,9 @@ function triggerSimulationModal(clientId, clientName) {
 function updateFileLabel(input) {
     const label = document.getElementById('fileSelectedLabel');
     if (input.files && input.files.length > 0) {
-        label.innerHTML = `<i class="fa-solid fa-file-csv me-1 text-success"></i> Selected: <strong>${input.files[0].name}</strong> (${(input.files[0].size/1024).toFixed(1)} KB)`;
+        label.innerHTML = `<i class="fa-solid fa-file-csv me-1 text-success"></i> ${input.files[0].name}`;
     } else {
-        label.innerHTML = '';
+        label.innerHTML = 'Click to choose .csv';
     }
 }
 
@@ -235,6 +347,40 @@ function filterClients() {
             row.style.display = 'none';
         }
     });
+}
+
+function togglePaymentDetails(checkbox) {
+    const row = document.getElementById('paymentDetailsRow');
+    if (checkbox.checked) {
+        row.style.display = 'block';
+    } else {
+        row.style.display = 'none';
+        row.querySelectorAll('input').forEach(i => i.value = '');
+    }
+}
+
+function togglePremiumDetails(checkbox) {
+    const row = document.getElementById('premiumDetailsRow');
+    if (checkbox.checked) {
+        row.style.display = 'block';
+    } else {
+        row.style.display = 'none';
+        row.querySelectorAll('input').forEach(i => i.value = '');
+    }
+}
+
+function setDateToToday(fieldName) {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const formattedToday = `${yyyy}-${mm}-${dd}`;
+    
+    if (fieldName === 'dob') {
+        document.getElementById('dob_input').value = formattedToday;
+    } else if (fieldName === 'event_date') {
+        document.getElementById('event_date_input').value = formattedToday;
+    }
 }
 
 document.getElementById('clientSearch')?.addEventListener('keyup', filterClients);

@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Reminders - Hamar AI Outreach CRM{% endblock %}
+{% block page_title %}Outstanding Payments & Reminders{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Left Column: Outstanding Registry Table -->
+    <div class="col-12 col-lg-8">
+        <div class="glass-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div>
+                    <h5 class="fw-bold text-white mb-1" style="font-size: 1.05rem;"><i class="fa-solid fa-wallet text-gradient me-2"></i>Outstanding Registry</h5>
+                    <p class="text-secondary small mb-0" style="font-size: 0.74rem;">Pending payments tracking registry. Select "Send Reminder ⚡" to alert clients.</p>
+                </div>
+            </div>
+
+            {% if pending_clients %}
+            <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                <table class="custom-table w-100">
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">Client Name</th>
+                            <th style="width: 25%;">Pending Amount</th>
+                            <th style="width: 30%;">Pending Reason</th>
+                            <th style="width: 15%;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for client in pending_clients %}
+                        <tr>
+                            <td class="fw-semibold text-white">
+                                {{ client.name }}
+                                {% if client.is_premium %}
+                                <span class="text-warning ms-1" style="color: #fbbf24 !important;"><i class="fa-solid fa-star animate-pulse"></i></span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge text-danger" style="font-size: 0.78rem; background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.15); padding: 4px 10px; font-weight: 700;">
+                                    ₹{{ "{:,.2f}".format(client.pending_amount) }}
+                                </span>
+                            </td>
+                            <td class="text-secondary small" style="font-size: 0.76rem;">
+                                {{ client.pending_reason or 'Not Specified' }}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <button type="button" class="btn btn-primary btn-sm py-1 px-2.5 d-flex align-items-center gap-1" style="font-size: 0.7rem; border-radius: 6px;" onclick="openReminderModal({{ client.id }}, '{{ client.name }}', {{ client.pending_amount }}, '{{ client.pending_reason or '' }}')">
+                                        <i class="fa-solid fa-bolt"></i> Send Reminder
+                                    </button>
+                                    <form action="{{ url_for('client_update_payment', client_id=client.id) }}" method="POST" class="m-0 d-inline">
+                                        <input type="hidden" name="pending_amount" value="0">
+                                        <input type="hidden" name="pending_reason" value="">
+                                        <button type="submit" class="btn btn-outline-success btn-sm py-1 px-2" style="font-size: 0.7rem; border-radius: 6px;" title="Mark as Paid">
+                                            <i class="fa-solid fa-circle-check"></i> Paid
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <div class="stat-icon success m-auto mb-3" style="background-color: rgba(16, 185, 129, 0.15); color: #10b981; width: 50px; height: 50px; border-radius: 50%;">
+                    <i class="fa-solid fa-circle-check fs-4"></i>
+                </div>
+                <h6 class="fw-bold mb-1 text-white" style="font-size: 0.9rem;">Outstanding Registry Clean!</h6>
+                <p class="text-secondary small mb-0">No client has any pending remaining payment balance in the system.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Right Column: Assign / Update Payment Form -->
+    <div class="col-12 col-lg-4">
+        <div class="glass-card">
+            <h5 class="fw-bold text-white mb-2" style="font-size: 1.05rem;">
+                <i class="fa-solid fa-plus text-gradient me-2"></i>Assign Outstanding Balance
+            </h5>
+            <p class="text-secondary small mb-3" style="font-size: 0.74rem;">Select any contact from the dropdown to assign or update their remaining pending payment details.</p>
+
+            <form id="assignPaymentForm" method="POST" onsubmit="updateAssignFormAction(event)">
+                <div class="mb-2.5">
+                    <label for="assignClientSelect" class="form-label text-secondary small fw-semibold mb-1" style="font-size: 0.72rem;">Choose Contact</label>
+                    <select class="form-select bg-primary text-white border-color" id="assignClientSelect" required style="font-size: 0.8rem; height: 36px; color: var(--text-primary) !important;" onchange="loadExistingPaymentDetails(this)">
+                        <option value="" disabled selected>-- Select Contact --</option>
+                        {% for client in all_clients %}
+                        <option value="{{ client.id }}" data-amount="{{ client.pending_amount }}" data-reason="{{ client.pending_reason or '' }}">
+                            {{ client.name }} ({{ client.whatsapp_number }}) {% if client.pending_amount > 0 %} [₹{{ client.pending_amount }}] {% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-2.5">
+                    <label for="assignAmount" class="form-label text-secondary small fw-semibold mb-1" style="font-size: 0.72rem;">Outstanding Amount (₹)</label>
+                    <input type="number" step="0.01" min="0" class="form-control bg-primary text-white border-color" id="assignAmount" name="pending_amount" required style="font-size: 0.8rem; height: 36px;" placeholder="e.g. 15000">
+                </div>
+
+                <div class="mb-3">
+                    <label for="assignReason" class="form-label text-secondary small fw-semibold mb-1" style="font-size: 0.72rem;">Pending Balance Reason</label>
+                    <input type="text" class="form-control bg-primary text-white border-color" id="assignReason" name="pending_reason" required style="font-size: 0.8rem; height: 36px;" placeholder="e.g. Registration Charges">
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-sm w-100 py-1.5 fw-bold" style="font-size: 0.8rem; border-radius: 8px;">
+                    <i class="fa-solid fa-save me-1"></i>Save Payment details
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Reminder Dispatch Modal -->
+<div class="modal fade" id="paymentReminderModal" tabindex="-1" aria-labelledby="paymentReminderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-card p-0" style="border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(18, 18, 22, 0.95); backdrop-filter: blur(20px);">
+            <div class="modal-header border-bottom border-color p-2 px-3">
+                <h6 class="modal-title fw-bold text-white mb-0" id="paymentReminderModalLabel">
+                    <i class="fa-solid fa-paper-plane text-gradient me-2"></i>Send Outstanding Reminder
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3 text-white">
+                <p class="text-secondary small mb-3" style="font-size: 0.78rem;">Dispatch a friendly outstanding alert to <strong id="reminderClientName" class="text-white">Client</strong> for <strong id="reminderReasonText" class="text-white">Reason</strong>.</p>
+                
+                <!-- AI Copywriter Section -->
+                <div class="mb-3 p-2.5 rounded-3" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(99, 102, 241, 0.2);">
+                    <div class="d-flex justify-content-between align-items-center mb-1.5">
+                        <label for="reminderAiPrompt" class="form-label text-secondary small fw-semibold mb-0" style="font-size: 0.72rem; color: #a5b4fc !important;">
+                            <i class="fa-solid fa-wand-magic-sparkles text-gradient me-1"></i> AI Personalizer Assist
+                        </label>
+                        <span class="badge text-secondary small" style="font-size: 0.62rem; background: rgba(99,102,241,0.15); color: #a5b4fc !important;">LangChain AI</span>
+                    </div>
+                    <div class="input-group input-group-sm">
+                        <input type="text" id="reminderAiPrompt" class="form-control bg-primary text-white border-color" placeholder="e.g. casual tone, in Hindi, offer UPI discount..." style="font-size: 0.75rem;">
+                        <button class="btn btn-primary btn-sm px-3 d-flex align-items-center gap-1" type="button" id="btnGenReminderAi" onclick="generateReminderWithAi()" style="font-size: 0.75rem; border-radius: 0 8px 8px 0;">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Generate
+                        </button>
+                    </div>
+                    <div id="reminderAiStatus" class="text-secondary small mt-1" style="font-size: 0.68rem; display: none;">
+                        <i class="fa-solid fa-spinner fa-spin text-gradient me-1"></i> Designing humanized payment reminder...
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <label for="reminderMessage" class="form-label text-secondary small fw-semibold mb-1" style="font-size: 0.75rem;">Outreach Greetings Message</label>
+                    <textarea class="form-control bg-primary text-white border-color" id="reminderMessage" rows="5" style="font-size: 0.82rem; line-height: 1.4; white-space: pre-wrap;"></textarea>
+                </div>
+                
+                <div id="reminderStatusText" class="text-secondary small mt-1" style="font-size: 0.72rem; display: none;">
+                    <i class="fa-solid fa-spinner fa-spin text-gradient me-1"></i> Delivering outstanding alert via WhatsApp...
+                </div>
+                <div id="reminderErrorText" class="text-danger small mt-1" style="font-size: 0.72rem; display: none;"></div>
+            </div>
+            <div class="modal-footer border-top border-color p-2 px-3">
+                <button type="button" class="btn btn-secondary btn-sm py-1" data-bs-dismiss="modal" style="font-size: 0.78rem;">Cancel</button>
+                <button type="button" id="sendReminderBtn" class="btn btn-primary btn-sm fw-bold px-3 d-flex align-items-center gap-1 py-1" style="font-size: 0.78rem;" onclick="submitQuickReminder()">
+                    <i class="fa-solid fa-paper-plane"></i> Send Reminder
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let activeReminderClientId = null;
+let currentPendingAmount = 0;
+let currentPendingReason = "";
+
+function loadExistingPaymentDetails(select) {
+    const selectedOption = select.options[select.selectedIndex];
+    const amount = selectedOption.getAttribute('data-amount') || 0;
+    const reason = selectedOption.getAttribute('data-reason') || '';
+    
+    document.getElementById('assignAmount').value = amount > 0 ? amount : '';
+    document.getElementById('assignReason').value = reason;
+}
+
+function updateAssignFormAction(event) {
+    const select = document.getElementById('assignClientSelect');
+    const form = document.getElementById('assignPaymentForm');
+    
+    if (!select.value) {
+        event.preventDefault();
+        alert('Please choose a valid client from the dropdown.');
+        return false;
+    }
+    
+    form.action = '/clients/' + select.value + '/update-payment';
+    return true;
+}
+
+function openReminderModal(clientId, clientName, amount, reason) {
+    activeReminderClientId = clientId;
+    currentPendingAmount = amount;
+    currentPendingReason = reason || "pending balance";
+    
+    document.getElementById('reminderClientName').innerText = clientName;
+    document.getElementById('reminderReasonText').innerText = currentPendingReason;
+    document.getElementById('reminderAiPrompt').value = '';
+    
+    const formattedAmount = Number(amount).toLocaleString('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 2
+    });
+    
+    const defaultMsg = `Hi ${clientName}, hope you are doing well.\n\nThis is a friendly reminder regarding the outstanding payment of ${formattedAmount} for ${currentPendingReason}. Please let us know if you need any assistance or bank details to complete the transfer.\n\nThank you for your support!`;
+    
+    document.getElementById('reminderMessage').value = defaultMsg;
+    document.getElementById('reminderErrorText').style.display = 'none';
+    document.getElementById('reminderStatusText').style.display = 'none';
+    document.getElementById('reminderAiStatus').style.display = 'none';
+    
+    const myModal = new bootstrap.Modal(document.getElementById('paymentReminderModal'));
+    myModal.show();
+}
+
+async function generateReminderWithAi() {
+    const promptInput = document.getElementById('reminderAiPrompt');
+    const userInstruction = promptInput.value.trim();
+    const clientName = document.getElementById('reminderClientName').innerText;
+    
+    let promptText = `Write a polite, warm, and highly professional WhatsApp payment reminder to our premium client named ${clientName} regarding an outstanding payment of ₹${currentPendingAmount} for "${currentPendingReason}". Do not use bold asterisks (*), keep the tone natural, genuine, and friendly.`;
+    
+    if (userInstruction) {
+        promptText += ` Adapt the message to these custom constraints: ${userInstruction}`;
+    }
+    
+    const textarea = document.getElementById('reminderMessage');
+    const btnGen = document.getElementById('btnGenReminderAi');
+    const statusDiv = document.getElementById('reminderAiStatus');
+    const errorText = document.getElementById('reminderErrorText');
+    
+    errorText.style.display = 'none';
+    statusDiv.style.display = 'block';
+    btnGen.disabled = true;
+    promptInput.disabled = true;
+    
+    try {
+        const response = await fetch('/api/generate-campaign-message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ prompt: promptText })
+        });
+        
+        const data = await response.json();
+        if (response.ok && data.status === 'success') {
+            let finalMsg = data.message;
+            // Robust placeholder substitution
+            finalMsg = finalMsg.replace(/{{name}}/g, clientName);
+            finalMsg = finalMsg.replace(/{{Name}}/g, clientName);
+            finalMsg = finalMsg.replace(/{name}/g, clientName);
+            finalMsg = finalMsg.replace(/{Name}/g, clientName);
+            
+            textarea.value = finalMsg;
+        } else {
+            errorText.textContent = data.message || "Failed to generate reminder with AI.";
+            errorText.style.display = 'block';
+        }
+    } catch (e) {
+        errorText.textContent = "Error communicating with AI assistant.";
+        errorText.style.display = 'block';
+    } finally {
+        statusDiv.style.display = 'none';
+        btnGen.disabled = false;
+        promptInput.disabled = false;
+    }
+}
+
+async function submitQuickReminder() {
+    const message = document.getElementById('reminderMessage').value.trim();
+    const sendBtn = document.getElementById('sendReminderBtn');
+    const statusText = document.getElementById('reminderStatusText');
+    const errorText = document.getElementById('reminderErrorText');
+    
+    if (!message) {
+        errorText.textContent = "Please draft a greeting message before sending!";
+        errorText.style.display = 'block';
+        return;
+    }
+    
+    errorText.style.display = 'none';
+    statusText.style.display = 'block';
+    sendBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/send-payment-reminder', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                client_id: activeReminderClientId,
+                message: message
+            })
+        });
+        
+        const data = await response.json();
+        if (response.ok && data.status === 'success') {
+            alert(data.message || "Outstanding reminder sent successfully!");
+            const modalEl = document.getElementById('paymentReminderModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            modal.hide();
+            
+            // Reload page to reflect changes if needed
+            window.location.reload();
+        } else {
+            errorText.textContent = data.message || "Failed to send greeting. Please try again.";
+            errorText.style.display = 'block';
+        }
+    } catch (e) {
+        errorText.textContent = "Failed to communicate with the server. Please verify settings.";
+        errorText.style.display = 'block';
+    } finally {
+        statusText.style.display = 'none';
+        sendBtn.disabled = false;
+    }
+}
+</script>
+{% endblock %}
